@@ -1,8 +1,8 @@
-# ResolveX AI — Testing Strategy and Verification Report
+# ComplainAI — Testing Strategy and Verification Report
 
 ## 1. Automated Test Suite
 
-ResolveX AI includes automated tests executed using `pytest` and `fastapi.testclient.TestClient`.
+ComplainAI includes automated tests executed using `pytest` and `fastapi.testclient.TestClient`.
 
 To execute the test suite:
 
@@ -13,7 +13,7 @@ PYTHONPATH=. ./venv/bin/pytest backend/tests/test_api.py -v
 ### Verified Test Cases:
 
 1. **`test_health_check`**: Verifies `/api/health` returns HTTP 200, system status is healthy, and scikit-learn classifier pipeline is loaded in memory.
-2. **`test_login_demo_admin`**: Validates JWT authentication for administrator credentials (`admin@resolvex.ai`).
+2. **`test_login_demo_admin`**: Validates JWT authentication for administrator credentials (`admin@complainai.ai`).
 3. **`test_login_invalid_password`**: Verifies rejection of incorrect passwords with HTTP 401 Unauthorized.
 4. **`test_register_new_user`**: Tests dynamic student registration and verifies role defaults to `user`.
 5. **`test_ai_classification_endpoint`**: Tests text classification on a real electrical issue ("Severe electric shock from laboratory switchboard") and confirms model outputs "Electrical and lighting" with positive feature contributions.
@@ -75,7 +75,7 @@ The following journey was tested and verified end-to-end:
    - Urgency scored with transparent factor breakdown.
 4. Submitted complaint: received unique ID `RX-2026-XXXXXX`.
 5. Navigated to `/track` with public ID: verified complaint details, lifecycle progress bar, and AI metadata.
-6. Signed in as admin (`admin@resolvex.ai` / `Admin@ResolveX2026!`).
+6. Signed in as admin (`admin@complainai.ai` / `Admin@ComplainAI2026!`).
 7. Opened `/admin`: inspected real-time Recharts analytics and located newly submitted complaint.
 8. Opened `/admin/complaints/:publicId`:
    - Updated status to `Under Review`.

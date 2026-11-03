@@ -1,8 +1,8 @@
 {
-  "name": "resolvex-ai",
+  "name": "complainai",
   "version": "1.0.0",
   "private": true,
-  "description": "ResolveX AI - Campus Complaint Classification & Priority Prediction System",
+  "description": "ComplainAI — AI-Powered Smart Complaint Classification and Priority Prediction System",
   "scripts": {
     "install": "npm --prefix frontend install",
     "build": "npm --prefix frontend run build"

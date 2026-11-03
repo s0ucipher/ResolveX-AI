@@ -13,8 +13,8 @@ def test_health_check():
 
 def test_login_demo_admin():
     res = client.post("/api/auth/login", json={
-        "email": "admin@resolvex.ai",
-        "password": "Admin@ResolveX2026!"
+        "email": "admin@complainai.ai",
+        "password": "Admin@ComplainAI2026!"
     })
     assert res.status_code == 200
     data = res.json()
@@ -23,7 +23,7 @@ def test_login_demo_admin():
 
 def test_login_invalid_password():
     res = client.post("/api/auth/login", json={
-        "email": "admin@resolvex.ai",
+        "email": "admin@complainai.ai",
         "password": "WrongPassword123"
     })
     assert res.status_code == 401
@@ -87,7 +87,7 @@ def test_submit_complaint_and_track():
         "category": None,
         "affected_count": 100,
         "duration_days": 2,
-        "user_email": "student@resolvex.ai"
+        "user_email": "student@complainai.ai"
     }
     res = client.post("/api/complaints", json=payload)
     assert res.status_code == 201
@@ -106,8 +106,8 @@ def test_submit_complaint_and_track():
 
 def test_admin_status_transitions_and_override():
     login_res = client.post("/api/auth/login", json={
-        "email": "admin@resolvex.ai",
-        "password": "Admin@ResolveX2026!"
+        "email": "admin@complainai.ai",
+        "password": "Admin@ComplainAI2026!"
     })
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -116,7 +116,7 @@ def test_admin_status_transitions_and_override():
         "title": "Broken window pane in classroom 204",
         "description": "Glass shard cracked and dangerous during high winds in lecture room.",
         "location": "Main Academic Block - 2nd Floor",
-        "user_email": "student@resolvex.ai"
+        "user_email": "student@complainai.ai"
     })
     public_id = submit_res.json()["public_id"]
 

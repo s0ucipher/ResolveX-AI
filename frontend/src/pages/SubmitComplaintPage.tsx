@@ -181,7 +181,7 @@ export const SubmitComplaintPage: React.FC = () => {
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">Complaint Lodged Successfully!</h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Your record is stored in the persistent database and evaluated by ResolveX AI.
+              Your record is stored in the persistent database and evaluated by ComplainAI.
             </p>
           </div>
 
@@ -288,7 +288,7 @@ export const SubmitComplaintPage: React.FC = () => {
         </div>
         <h1 className="text-3xl sm:text-4xl font-black text-[#172033] dark:text-[#F8FAFC] mt-1">Submit a Campus Complaint</h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-          Describe the problem in plain conversational language. ResolveX AI automatically determines the category, evaluates priority, and flags duplicates.
+          Describe the problem in plain conversational language. ComplainAI automatically determines the category, evaluates priority, and flags duplicates.
         </p>
       </div>
 
@@ -382,7 +382,7 @@ export const SubmitComplaintPage: React.FC = () => {
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 focus:outline-none focus:border-primaryViolet dark:focus:border-cyan-400 text-xs text-slate-800 dark:text-slate-200 font-medium"
               >
-                <option value="">✨ Let ResolveX AI Predict Automatically</option>
+                <option value="">✨ Let ComplainAI Predict Automatically</option>
                 {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat} className="bg-white dark:bg-[#171F3B]">{cat}</option>
                 ))}
@@ -567,7 +567,7 @@ export const SubmitComplaintPage: React.FC = () => {
               <span>Human-in-the-Loop Safeguard</span>
             </div>
             <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              ResolveX AI outputs are advisory recommendations. Authorized campus administrators review and triage each ticket before technician dispatch.
+              ComplainAI outputs are advisory recommendations. Authorized campus administrators review and triage each ticket before technician dispatch.
             </p>
           </div>
         </div>

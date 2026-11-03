@@ -3,7 +3,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_DIR = os.path.dirname(os.path.abspath(__file__))
-raw_database_url = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(DATABASE_DIR, 'resolvex.db')}")
+default_sqlite = "complainai.db" if os.path.exists(os.path.join(DATABASE_DIR, "complainai.db")) else "resolvex.db"
+raw_database_url = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(DATABASE_DIR, default_sqlite)}")
 
 # Fix Render/Heroku postgres:// scheme for SQLAlchemy 1.4+ and 2.0+
 if raw_database_url.startswith("postgres://"):

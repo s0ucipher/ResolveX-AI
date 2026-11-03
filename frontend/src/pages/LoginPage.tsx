@@ -34,11 +34,11 @@ export const LoginPage: React.FC = () => {
 
   const fillCredentials = (role: 'admin' | 'student') => {
     if (role === 'admin') {
-      setEmail('admin@resolvex.ai');
-      setPassword('Admin@ResolveX2026!');
+      setEmail('admin@complainai.ai');
+      setPassword('Admin@ComplainAI2026!');
     } else {
-      setEmail('student@resolvex.ai');
-      setPassword('Student@ResolveX2026!');
+      setEmail('student@complainai.ai');
+      setPassword('Student@ComplainAI2026!');
     }
     setError(null);
   };
@@ -50,7 +50,7 @@ export const LoginPage: React.FC = () => {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primaryViolet via-brightBlue to-cyanAccent text-white flex items-center justify-center mx-auto shadow-glossy-light dark:shadow-neon-violet/30">
             <Lock className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">Sign In to ResolveX AI</h1>
+          <h1 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">Sign In to ComplainAI</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Access your complaint management portal & live tracking</p>
         </div>
 

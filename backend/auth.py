@@ -10,7 +10,7 @@ from backend.database import get_db
 from backend.models import User
 from backend.schemas import TokenData
 
-SECRET_KEY = os.getenv("SECRET_KEY", os.getenv("RESOLVEX_SECRET_KEY", "resolvex-ai-dev-secret-key-college-caa-2026-viva-security"))
+SECRET_KEY = os.getenv("SECRET_KEY", os.getenv("COMPLAINAI_SECRET_KEY", os.getenv("RESOLVEX_SECRET_KEY", "complainai-dev-secret-key-college-caa-2026-viva-security")))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 

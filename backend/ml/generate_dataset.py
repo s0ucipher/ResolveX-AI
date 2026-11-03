@@ -1,5 +1,5 @@
 """
-Dataset generator for ResolveX AI.
+Dataset generator for ComplainAI.
 Generates a representative, synthetic college campus complaints dataset across 10 categories.
 Includes varied phrasing, lengths, realistic campus locations, and severity levels.
 """

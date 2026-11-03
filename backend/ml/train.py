@@ -1,5 +1,5 @@
 """
-Model Training Script for ResolveX AI.
+Model Training Script for ComplainAI.
 Trains a TF-IDF + Logistic Regression classification pipeline on complaint data.
 Evaluates model on held-out test set and saves serialised pipeline and evaluation reports.
 """
@@ -131,7 +131,7 @@ def train_and_evaluate():
     # Save human-readable text report
     with open(REPORT_TXT_PATH, "w", encoding="utf-8") as f:
         f.write("=" * 70 + "\n")
-        f.write("RESOLVEX AI - MACHINE LEARNING MODEL EVALUATION REPORT\n")
+        f.write("COMPLAINAI - MACHINE LEARNING MODEL EVALUATION REPORT\n")
         f.write("=" * 70 + "\n\n")
         f.write(f"Dataset Size:       {total_samples} samples across {len(unique_classes)} categories\n")
         f.write(f"Train/Test Split:   80% Train ({len(X_train)}), 20% Test ({len(X_test)}) Stratified\n")

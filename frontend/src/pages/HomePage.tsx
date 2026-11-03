@@ -214,7 +214,7 @@ export const HomePage: React.FC = () => {
                 <div>
                   <div className="font-bold text-[#172033] dark:text-[#F8FAFC]">Examiner & Demo Access:</div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    Pre-seeded Admin (<code className="text-primaryViolet dark:text-darkCyan font-mono font-bold bg-violet-50 dark:bg-white/5 px-1 py-0.5 rounded">admin@resolvex.ai</code>) and Student accounts with 1-click fast login.
+                    Pre-seeded Admin (<code className="text-primaryViolet dark:text-darkCyan font-mono font-bold bg-violet-50 dark:bg-white/5 px-1 py-0.5 rounded">admin@complainai.ai</code>) and Student accounts with 1-click fast login.
                   </div>
                 </div>
               </div>
@@ -589,7 +589,7 @@ export const HomePage: React.FC = () => {
             End-To-End Architecture
           </span>
           <h2 className="text-3xl sm:text-4xl font-black text-[#172033] dark:text-[#F8FAFC] pt-2">
-            How Complaints Move Through ResolveX AI
+            How Complaints Move Through ComplainAI
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Transparent automated intelligence guiding humans through every resolution stage.

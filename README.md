@@ -1,10 +1,10 @@
-# ResolveX AI
+# ComplainAI
 ### AI-Powered Smart Complaint Classification and Priority Prediction System
 
 > **Product Tagline:** Report Smarter. Prioritise Better. Resolve Faster.  
 > **Use Case:** College Campus Facility Management & Municipal Public Services
 
-ResolveX AI is a full-stack, production-grade web application engineered for college campus complaint triage. It replaces manual categorisation with **real scikit-learn machine learning**, replaces subjective urgency with a **transparent rule-based priority engine**, and provides an **audited lifecycle tracking platform** with role-based access control.
+ComplainAI is a full-stack, production-grade web application engineered for college campus complaint triage. It replaces manual categorisation with **real scikit-learn machine learning**, replaces subjective urgency with a **transparent rule-based priority engine**, and provides an **audited lifecycle tracking platform** with role-based access control.
 
 ---
 
@@ -59,7 +59,7 @@ ResolveX AI is a full-stack, production-grade web application engineered for col
 ## 📂 Project Directory Structure
 
 ```text
-ResolveX AI/
+ComplainAI/
 ├── backend/
 │   ├── ml/
 │   │   ├── generate_dataset.py       # Synthetic dataset generation
@@ -198,8 +198,8 @@ All 10 tests will run and pass, validating authentication, AI inference, priorit
 
 | Role | Email | Password | Access Level |
 | :--- | :--- | :--- | :--- |
-| **Campus Admin** | `admin@resolvex.ai` | `Admin@ResolveX2026!` | Full administrative triage, status transitions, department assignment, category & priority overrides, Recharts analytics |
-| **Student** | `student@resolvex.ai` | `Student@ResolveX2026!` | Public lodging, personal dashboard, live status tracking |
+| **Campus Admin** | `admin@complainai.ai` | `Admin@ComplainAI2026!` | Full administrative triage, status transitions, department assignment, category & priority overrides, Recharts analytics |
+| **Student** | `student@complainai.ai` | `Student@ComplainAI2026!` | Public lodging, personal dashboard, live status tracking |
 
 *(1-click login buttons are also available on the Login page for convenient viva demonstration).*
 
@@ -215,7 +215,7 @@ All 10 tests will run and pass, validating authentication, AI inference, priorit
 3. **Track Complaint (`/track`)**:
    - Inspect the lifecycle progress stepper, AI reasoning breakdown, and initial audit trail.
 4. **Admin Command Center (`/admin`)**:
-   - Sign in as `admin@resolvex.ai`.
+   - Sign in as `admin@complainai.ai`.
    - Show live Recharts analytics (Category distribution, Priority breakdown, Campus Hotspots).
    - Click **"Manage & Triage"** on the newly submitted issue.
    - Advance status to `Under Review`, assign `Electrical Maintenance Division`, and update priority.

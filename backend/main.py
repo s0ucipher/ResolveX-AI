@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(
-    title="ResolveX AI - Smart Complaint Classification & Priority Prediction System",
+    title="ComplainAI - Smart Complaint Classification & Priority Prediction System",
     description="Automated AI-driven complaint classification, transparent priority engine, and lifecycle tracking for campus facilities.",
     version="1.0.0",
     lifespan=lifespan
@@ -69,7 +69,7 @@ app.include_router(ai_router)
 def health_check():
     return {
         "status": "healthy",
-        "service": "ResolveX AI Backend",
+        "service": "ComplainAI Backend",
         "version": "1.0.0",
         "classifier_status": "loaded" if classifier_service.pipeline is not None else "unloaded",
         "database": "connected",
@@ -97,7 +97,7 @@ else:
     @app.get("/", tags=["Root"])
     def root_info():
         return {
-            "product": "ResolveX AI Backend API",
+            "product": "ComplainAI Backend API",
             "tagline": "Report Smarter. Prioritise Better. Resolve Faster.",
             "docs_url": "/docs",
             "health_check": "/health",

@@ -436,7 +436,7 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-black text-[#172033] dark:text-[#F8FAFC] text-sm">Urgency & Priority Levels</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Computed by ResolveX Priority Rubric</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Computed by ComplainAI Priority Rubric</p>
               </div>
               <span className="text-[10px] font-mono text-amber-800 dark:text-darkAmber bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-700/60 font-bold">Risk Score</span>
             </div>

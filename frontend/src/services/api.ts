@@ -13,7 +13,7 @@ const rawBase = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_U
 const API_BASE = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
 
 function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem('resolvex_token');
+  const token = localStorage.getItem('complainai_token') || localStorage.getItem('resolvex_token');
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };

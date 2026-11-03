@@ -10,12 +10,13 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_STORAGE_KEY = 'resolvex_theme_preference';
+const THEME_STORAGE_KEY = 'complainai_theme_preference';
+const LEGACY_THEME_STORAGE_KEY = 'resolvex_theme_preference';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
     // Check localStorage first
-    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    const saved = localStorage.getItem(THEME_STORAGE_KEY) || localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
     if (saved === 'light' || saved === 'dark') {
       return saved;
     }

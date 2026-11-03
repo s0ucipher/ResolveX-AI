@@ -92,7 +92,7 @@ export const ModelEvaluationPage: React.FC = () => {
           Machine Learning Model Evaluation & Viva Defense
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">
-          ResolveX AI utilizes a genuine TF-IDF vectorizer + Multinomial Logistic Regression pipeline. The evaluation report below is computed directly on held-out test data not exposed during training.
+          ComplainAI utilizes a genuine TF-IDF vectorizer + Multinomial Logistic Regression pipeline. The evaluation report below is computed directly on held-out test data not exposed during training.
         </p>
       </div>
 

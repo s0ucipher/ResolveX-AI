@@ -47,7 +47,7 @@ export const RegisterPage: React.FC = () => {
             <UserPlus className="w-6 h-6" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">Create an Account</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Join the ResolveX AI complaint intelligence network</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Join the ComplainAI complaint intelligence network</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 sm:p-8 space-y-4 backdrop-blur-xl">

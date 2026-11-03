@@ -45,7 +45,7 @@ export const Navbar: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-xl tracking-tight text-[#172033] dark:text-[#F8FAFC]">
-                  Resolve<span className="text-transparent bg-clip-text bg-gradient-to-r from-primaryViolet via-brightBlue to-cyanAccent">X</span> AI
+                  Complain<span className="text-transparent bg-clip-text bg-gradient-to-r from-primaryViolet via-brightBlue to-cyanAccent">AI</span>
                 </span>
                 <span className="text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/70 text-primaryViolet dark:text-darkPurple border border-violet-200 dark:border-violet-800/60 shadow-2xs">
                   CAA LIVE

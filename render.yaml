@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: resolvex-ai-backend
+    name: complainai-backend
     runtime: python
     buildCommand: pip install -r backend/requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
@@ -16,13 +16,12 @@ services:
         value: https://.*\.vercel\.app
       - key: DATABASE_URL
         fromDatabase:
-          name: resolvex-postgres
+          name: complainai-postgres
           property: connectionString
 
 databases:
-  - name: resolvex-postgres
+  - name: complainai-postgres
     plan: free
     region: oregon
-    databaseName: resolvex_db
-    user: resolvex_user
-
+    databaseName: complainai_db
+    user: complainai_user

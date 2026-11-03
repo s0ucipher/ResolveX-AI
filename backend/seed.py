@@ -1,5 +1,5 @@
 """
-Database Seeding Script for ResolveX AI.
+Database Seeding Script for ComplainAI.
 Provisions demo users (admin and student) and realistic campus complaints across categories and lifecycles.
 Safe to run repeatedly; does not duplicate records if already seeded.
 """
@@ -14,6 +14,18 @@ from backend.services.priority import calculate_priority
 Base.metadata.create_all(bind=engine)
 
 DEMO_USERS = [
+    {
+        "name": "Prof. Arvind Kumar (Campus Facilities Dean)",
+        "email": "admin@complainai.ai",
+        "password": "Admin@ComplainAI2026!",
+        "role": "admin"
+    },
+    {
+        "name": "Rohan Sharma (Student Council Representative)",
+        "email": "student@complainai.ai",
+        "password": "Student@ComplainAI2026!",
+        "role": "user"
+    },
     {
         "name": "Prof. Arvind Kumar (Campus Facilities Dean)",
         "email": "admin@resolvex.ai",
@@ -40,7 +52,7 @@ SAMPLE_COMPLAINTS = [
         "affected_count": 250,
         "duration_days": 2,
         "history_notes": [
-            ("Submitted", "Complaint lodged by student via ResolveX portal.", "student@resolvex.ai"),
+            ("Submitted", "Complaint lodged by student via ComplainAI portal.", "student@complainai.ai"),
             ("Under Review", "Investigated immediately due to Critical safety flag.", "Admin (Prof. Arvind Kumar)"),
             ("Assigned", "Assigned to Senior Campus Electrician team.", "Admin (Prof. Arvind Kumar)"),
             ("In Progress", "Power to hallway isolated. Conduit replacement underway.", "Admin (Prof. Arvind Kumar)")
@@ -57,7 +69,7 @@ SAMPLE_COMPLAINTS = [
         "affected_count": 80,
         "duration_days": 1,
         "history_notes": [
-            ("Submitted", "Lodged by Hostel 2 residents.", "student@resolvex.ai"),
+            ("Submitted", "Lodged by Hostel 2 residents.", "student@complainai.ai"),
             ("Under Review", "High priority confirmed due to student residential impact.", "Admin (Prof. Arvind Kumar)"),
             ("Assigned", "Dispatched plumbing maintenance crew to inspect booster pump.", "Admin (Prof. Arvind Kumar)")
         ]
@@ -73,7 +85,7 @@ SAMPLE_COMPLAINTS = [
         "affected_count": 120,
         "duration_days": 1,
         "history_notes": [
-            ("Submitted", "Automated classification categorized as Internet and IT services.", "student@resolvex.ai"),
+            ("Submitted", "Automated classification categorized as Internet and IT services.", "student@complainai.ai"),
             ("Under Review", "Network administrators inspecting RADIUS server logs.", "Admin (Prof. Arvind Kumar)")
         ]
     },
@@ -102,7 +114,7 @@ SAMPLE_COMPLAINTS = [
         "affected_count": 60,
         "duration_days": 1,
         "history_notes": [
-            ("Submitted", "Reported by visiting lecturer.", "student@resolvex.ai"),
+            ("Submitted", "Reported by visiting lecturer.", "student@complainai.ai"),
             ("Under Review", "Verified by A/V coordinator.", "Admin (Prof. Arvind Kumar)"),
             ("Assigned", "New lamp module dispatched.", "Admin (Prof. Arvind Kumar)"),
             ("In Progress", "Technician replaced projector lamp and calibrated resolution.", "Admin (Prof. Arvind Kumar)"),
@@ -137,7 +149,7 @@ SAMPLE_COMPLAINTS = [
         "affected_count": 150,
         "duration_days": 1,
         "history_notes": [
-            ("Submitted", "CRITICAL SAFETY RISK detected by ResolveX Priority Engine.", "student@resolvex.ai"),
+            ("Submitted", "CRITICAL SAFETY RISK detected by ComplainAI Priority Engine.", "student@complainai.ai"),
             ("Under Review", "Security chief dispatched keymaster immediately to remove padlock.", "Admin (Prof. Arvind Kumar)")
         ]
     },
@@ -152,7 +164,7 @@ SAMPLE_COMPLAINTS = [
         "affected_count": 4,
         "duration_days": 5,
         "history_notes": [
-            ("Submitted", "Categorized into Hostel and accommodation.", "student@resolvex.ai"),
+            ("Submitted", "Categorized into Hostel and accommodation.", "student@complainai.ai"),
             ("Under Review", "Warden acknowledged pest control request.", "Admin (Prof. Arvind Kumar)"),
             ("Assigned", "Pest extermination scheduled for Saturday.", "Admin (Prof. Arvind Kumar)")
         ]
@@ -182,7 +194,7 @@ def seed_database():
             else:
                 user_map[existing.email] = existing
 
-        student_user = user_map.get("student@resolvex.ai")
+        student_user = user_map.get("student@complainai.ai") or user_map.get("student@resolvex.ai")
 
         # 2. Seed Sample Complaints
         now = datetime.datetime.utcnow()
@@ -207,7 +219,7 @@ def seed_database():
             complaint = Complaint(
                 public_id=cdata["public_id"],
                 user_id=student_user.id if student_user else None,
-                user_email="student@resolvex.ai",
+                user_email="student@complainai.ai",
                 title=cdata["title"],
                 description=cdata["description"],
                 location=cdata["location"],

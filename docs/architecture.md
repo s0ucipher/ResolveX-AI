@@ -1,8 +1,8 @@
-# ResolveX AI — System Architecture Document
+# ComplainAI — System Architecture Document
 
 ## 1. High-Level Architecture Overview
 
-ResolveX AI is designed around a decoupled, layered architecture adhering to the principle that the backend is the authoritative source of truth for business logic, persistence, and AI inference.
+ComplainAI is designed around a decoupled, layered architecture adhering to the principle that the backend is the authoritative source of truth for business logic, persistence, and AI inference.
 
 ```mermaid
 flowchart TD
@@ -61,7 +61,7 @@ flowchart TD
 
 ## 3. Complaint Lifecycle State Machine
 
-ResolveX AI implements a strict state machine to prevent unauthorized or nonsensical status leaps (e.g., an unreviewed complaint cannot jump directly to Resolved).
+ComplainAI implements a strict state machine to prevent unauthorized or nonsensical status leaps (e.g., an unreviewed complaint cannot jump directly to Resolved).
 
 ```mermaid
 stateDiagram-v2

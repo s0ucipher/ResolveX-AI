@@ -1,4 +1,4 @@
-# ResolveX AI — Academic Viva & Technical Defense Guide
+# ComplainAI — Academic Viva & Technical Defense Guide
 
 This document prepares the project team for the technical viva and CAA examination. It covers theoretical foundations, architectural justifications, and detailed answers to probable examiner questions.
 
@@ -12,8 +12,8 @@ This document prepares the project team for the technical viva and CAA examinati
 3. **Lack of Transparency**: Complainants have no visibility into progress once a ticket is lodged, leading to duplicate submissions.
 4. **Redundant Work**: Similar issues in communal areas (e.g., hostel water cuts) result in multiple duplicate work orders.
 
-### The ResolveX AI Solution:
-ResolveX AI automates the initial triage process using natural language processing (NLP) and supervised machine learning, recommends an objective priority level using a documented safety rubric, and provides an audited lifecycle tracking portal with human-in-the-loop overrides.
+### The ComplainAI Solution:
+ComplainAI automates the initial triage process using natural language processing (NLP) and supervised machine learning, recommends an objective priority level using a documented safety rubric, and provides an audited lifecycle tracking portal with human-in-the-loop overrides.
 
 ---
 

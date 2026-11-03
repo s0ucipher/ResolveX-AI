@@ -14,7 +14,7 @@ export const Footer: React.FC = () => {
           {/* Brand Col */}
           <div className="space-y-4 md:col-span-1">
             <div className="flex items-center gap-2 text-[#172033] dark:text-[#F8FAFC] font-extrabold text-xl tracking-tight">
-              <span>Resolve<span className="text-transparent bg-clip-text bg-gradient-to-r from-primaryViolet to-cyanAccent">X</span> AI</span>
+              <span>Complain<span className="text-transparent bg-clip-text bg-gradient-to-r from-primaryViolet to-cyanAccent">AI</span></span>
             </div>
             <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
               Next-generation complaint intelligence system combining Scikit-learn NLP classification, deterministic priority scoring, and complete audited lifecycle tracking.
@@ -71,7 +71,7 @@ export const Footer: React.FC = () => {
 
         <div className="pt-8 border-t border-slate-200/80 dark:border-white/10 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 dark:text-slate-400 gap-4">
           <div>
-            © {new Date().getFullYear()} ResolveX AI. Tagline: <span className="text-slate-700 dark:text-slate-300 font-semibold italic">Report Smarter. Prioritise Better. Resolve Faster.</span>
+            © {new Date().getFullYear()} ComplainAI. Tagline: <span className="text-slate-700 dark:text-slate-300 font-semibold italic">Report Smarter. Prioritise Better. Resolve Faster.</span>
           </div>
           <div className="flex items-center gap-4 text-[11px]">
             <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 font-medium">

@@ -14,9 +14,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const TOKEN_KEY = 'complainai_token';
+const LEGACY_TOKEN_KEY = 'resolvex_token';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('resolvex_token'));
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,7 +33,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(u);
       } catch (err) {
         console.error('Session expired or invalid token', err);
-        localStorage.removeItem('resolvex_token');
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(LEGACY_TOKEN_KEY);
         setToken(null);
         setUser(null);
       } finally {
@@ -42,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, pass: string): Promise<User> => {
     const data = await api.login(email, pass);
-    localStorage.setItem('resolvex_token', data.access_token);
+    localStorage.setItem(TOKEN_KEY, data.access_token);
     setToken(data.access_token);
     setUser(data.user);
     return data.user;
@@ -50,14 +54,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (name: string, email: string, pass: string): Promise<User> => {
     const data = await api.register(name, email, pass);
-    localStorage.setItem('resolvex_token', data.access_token);
+    localStorage.setItem(TOKEN_KEY, data.access_token);
     setToken(data.access_token);
     setUser(data.user);
     return data.user;
   };
 
   const logout = () => {
-    localStorage.removeItem('resolvex_token');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
     setToken(null);
     setUser(null);
   };

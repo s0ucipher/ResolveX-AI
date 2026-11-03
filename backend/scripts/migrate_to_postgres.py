@@ -1,6 +1,6 @@
 """
 Database Migration Utility: SQLite to PostgreSQL
-ResolveX AI - Campus Complaint Intelligence System
+ComplainAI - Campus Complaint Intelligence System
 
 Usage:
     python -m backend.scripts.migrate_to_postgres --sqlite backend/resolvex.db --postgres "postgresql://user:pass@host:port/dbname"
@@ -24,7 +24,7 @@ def migrate(sqlite_path: str, postgres_url: str):
         postgres_url = postgres_url.replace("postgres://", "postgresql://", 1)
 
     print("==================================================")
-    print(" ResolveX AI - SQLite to PostgreSQL Data Migrator")
+    print(" ComplainAI - SQLite to PostgreSQL Data Migrator")
     print("==================================================")
     print(f" Source SQLite    : {sqlite_path}")
     print(f" Target PostgreSQL: {postgres_url.split('@')[-1] if '@' in postgres_url else 'configured'}")
@@ -156,7 +156,7 @@ def migrate(sqlite_path: str, postgres_url: str):
         dst_db.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Migrate ResolveX SQLite DB to PostgreSQL")
+    parser = argparse.ArgumentParser(description="Migrate ComplainAI SQLite DB to PostgreSQL")
     parser.add_argument("--sqlite", default="backend/resolvex.db", help="Path to SQLite file")
     parser.add_argument("--postgres", default=os.getenv("DATABASE_URL"), help="PostgreSQL connection string")
     args = parser.parse_args()

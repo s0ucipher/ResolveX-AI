@@ -1,5 +1,5 @@
 """
-Evaluation utility for ResolveX AI classification model.
+Evaluation utility for ComplainAI classification model.
 Loads the serialised model and held-out test data, then computes detailed metrics.
 """
 

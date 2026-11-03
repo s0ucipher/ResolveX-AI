@@ -90,7 +90,7 @@ def submit_complaint(
         complaint_id=complaint.id,
         previous_status=None,
         new_status="Submitted",
-        note=f"Complaint lodged into ResolveX AI system. AI Category: '{predicted_category}' ({confidence*100:.1f}% confidence). Priority: '{predicted_priority}'.",
+        note=f"Complaint lodged into ComplainAI system. AI Category: '{predicted_category}' ({confidence*100:.1f}% confidence). Priority: '{predicted_priority}'.",
         changed_by=current_user.name if current_user else (payload.user_email or "User"),
         created_at=now
     )
