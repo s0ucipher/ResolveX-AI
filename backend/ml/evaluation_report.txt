@@ -1,0 +1,40 @@
+======================================================================
+RESOLVEX AI - MACHINE LEARNING MODEL EVALUATION REPORT
+======================================================================
+
+Dataset Size:       500 samples across 10 categories
+Train/Test Split:   80% Train (400), 20% Test (100) Stratified
+Vectorizer:         TF-IDF (1-2 n-grams, sublinear_tf=True)
+Classifier:         Multinomial Logistic Regression (balanced weights)
+
+Overall Accuracy:   99.00%
+Macro F1-Score:     0.9900
+Weighted F1-Score:  0.9900
+
+Per-Class Performance:
+----------------------------------------------------------------------
+Category                               | Prec   | Recall | F1     | Support
+----------------------------------------------------------------------
+Classroom and laboratory facilities    | 1.000  | 1.000  | 1.000  | 10.0
+Cleanliness and waste management       | 0.909  | 1.000  | 0.952  | 10.0
+Electrical and lighting                | 1.000  | 1.000  | 1.000  | 10.0
+Hostel and accommodation               | 1.000  | 1.000  | 1.000  | 10.0
+Internet and IT services               | 1.000  | 1.000  | 1.000  | 10.0
+Other                                  | 1.000  | 1.000  | 1.000  | 10.0
+Plumbing and sanitation                | 1.000  | 0.900  | 0.947  | 10.0
+Roads and infrastructure               | 1.000  | 1.000  | 1.000  | 10.0
+Safety and security                    | 1.000  | 1.000  | 1.000  | 10.0
+Water supply                           | 1.000  | 1.000  | 1.000  | 10.0
+----------------------------------------------------------------------
+
+Confusion Matrix:
+  [10, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  [0, 10, 0, 0, 0, 0, 0, 0, 0, 0]
+  [0, 0, 10, 0, 0, 0, 0, 0, 0, 0]
+  [0, 0, 0, 10, 0, 0, 0, 0, 0, 0]
+  [0, 0, 0, 0, 10, 0, 0, 0, 0, 0]
+  [0, 0, 0, 0, 0, 10, 0, 0, 0, 0]
+  [0, 1, 0, 0, 0, 0, 9, 0, 0, 0]
+  [0, 0, 0, 0, 0, 0, 0, 10, 0, 0]
+  [0, 0, 0, 0, 0, 0, 0, 0, 10, 0]
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 10]

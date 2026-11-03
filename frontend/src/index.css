@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-page: #F4F2FF;
+    --text-primary: #172033;
+    --text-secondary: #475569;
+  }
+
+  html.dark {
+    --bg-page: #080B18;
+    --text-primary: #F8FAFC;
+    --text-secondary: #B6C2D9;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    @apply font-sans antialiased selection:bg-primaryViolet selection:text-white transition-colors duration-300;
+  }
+}
+
+@layer utilities {
+  .text-gradient-hero {
+    background: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 50%, #06B6D4 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .text-gradient-dark-hero {
+    background: linear-gradient(135deg, #A78BFA 0%, #60A5FA 50%, #22D3EE 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .btn-gradient-primary {
+    background: linear-gradient(135deg, #7C3AED 0%, #3B82F6 55%, #06B6D4 100%);
+    box-shadow: 0 10px 25px -5px rgba(124, 58, 237, 0.35);
+  }
+
+  .btn-gradient-primary:hover {
+    box-shadow: 0 15px 35px -5px rgba(124, 58, 237, 0.5);
+    transform: translateY(-1px);
+  }
+}
+
+/* Custom crisp scrollbars supporting light & dark */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8B5CF6;
+}

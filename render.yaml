@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: resolvex-ai-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    plan: free
+    region: oregon
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGIN_REGEX
+        value: https://.*\.vercel\.app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: resolvex-postgres
+          property: connectionString
+
+databases:
+  - name: resolvex-postgres
+    plan: free
+    region: oregon
+    databaseName: resolvex_db
+    user: resolvex_user
