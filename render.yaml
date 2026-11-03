@@ -25,3 +25,4 @@ databases:
     region: oregon
     databaseName: resolvex_db
     user: resolvex_user
+
