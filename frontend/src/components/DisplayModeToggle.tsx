@@ -54,3 +54,4 @@ export const DisplayModeToggle: React.FC<Props> = ({ className = '', showLabel =
     </button>
   );
 };
+

@@ -19,6 +19,7 @@ import {
   Cpu
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useDisplayMode } from '../context/DisplayModeContext';
 import { Complaint, StatusHistory } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
 import { StatusBadge } from '../components/StatusBadge';
@@ -32,6 +33,7 @@ const LIFECYCLE_STEPS = [
 ];
 
 export const TrackComplaintPage: React.FC = () => {
+  const { isMobileMode } = useDisplayMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get('id') || '';
 
@@ -96,19 +98,21 @@ export const TrackComplaintPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12 space-y-10">
+    <div className={`${isMobileMode ? 'w-full px-3.5 py-4 space-y-5' : 'max-w-5xl mx-auto px-4 py-12 space-y-10'}`}>
       {/* Search Bar Header */}
-      <div className="text-center max-w-xl mx-auto space-y-3">
+      <div className={`text-center max-w-xl mx-auto ${isMobileMode ? 'space-y-2' : 'space-y-3'}`}>
         <div className="inline-flex items-center gap-2 text-xs font-mono text-brightBlue dark:text-darkCyan font-bold mb-1 px-3.5 py-1 rounded-full bg-blue-100 dark:bg-cyan-950/60 border border-blue-200 dark:border-cyan-800/40">
           <Search className="w-3.5 h-3.5 text-brightBlue dark:text-darkCyan" />
           <span>INSTANT PUBLIC LOOKUP</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black text-[#172033] dark:text-[#F8FAFC]">Track Complaint Progress</h1>
+        <h1 className={`font-black text-[#172033] dark:text-[#F8FAFC] ${isMobileMode ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>
+          Track Complaint Progress
+        </h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
           Enter your unique public tracking ID (e.g. <span className="font-mono text-primaryViolet dark:text-darkPurple font-bold">RX-2026-ELE001</span>) to view real-time maintenance updates.
         </p>
 
-        <form onSubmit={handleSearch} className="flex gap-2 max-w-md mx-auto pt-3">
+        <form onSubmit={handleSearch} className="flex gap-2 max-w-md mx-auto pt-2">
           <div className="relative flex-1">
             <input
               type="text"

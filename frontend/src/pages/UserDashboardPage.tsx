@@ -19,12 +19,14 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useDisplayMode } from '../context/DisplayModeContext';
 import { Complaint } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
 import { StatusBadge } from '../components/StatusBadge';
 
 export const UserDashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const { isMobileMode } = useDisplayMode();
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,9 +65,11 @@ export const UserDashboardPage: React.FC = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className={`${isMobileMode ? 'w-full px-3.5 py-4 space-y-4' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8'}`}>
       {/* Welcome Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 rounded-3xl bg-[#F0E9FF] dark:bg-[#0F1530] border border-violet-200/80 dark:border-white/10 shadow-card-light dark:shadow-card-dark">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl bg-[#F0E9FF] dark:bg-[#0F1530] border border-violet-200/80 dark:border-white/10 shadow-card-light dark:shadow-card-dark ${
+        isMobileMode ? 'p-4' : 'p-6 sm:p-8'
+      }`}>
         <div>
           <div className="inline-flex items-center gap-2 text-xs font-mono text-primaryViolet dark:text-darkPurple font-bold mb-1">
             <span className="w-2 h-2 rounded-full bg-primaryViolet dark:bg-darkPurple" />

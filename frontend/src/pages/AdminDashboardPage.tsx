@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import { useDisplayMode } from '../context/DisplayModeContext';
 import { Complaint, AnalyticsSummary, ChartDataPoint, CATEGORIES } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
 import { StatusBadge } from '../components/StatusBadge';
@@ -59,6 +60,7 @@ const CATEGORY_COLORS = ['#7C3AED', '#3B82F6', '#06B6D4', '#14B8A6', '#FB7185', 
 export const AdminDashboardPage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const { isMobileMode } = useDisplayMode();
 
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [categoryData, setCategoryData] = useState<ChartDataPoint[]>([]);
@@ -124,9 +126,11 @@ export const AdminDashboardPage: React.FC = () => {
   const criticalQueue = complaints.filter(c => c.final_priority === 'Critical');
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className={`${isMobileMode ? 'w-full px-3.5 py-4 space-y-4' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8'}`}>
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 rounded-3xl bg-[#F0E9FF] dark:bg-[#0F1530] border border-violet-200/80 dark:border-white/10 shadow-card-light dark:shadow-card-dark">
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl bg-[#F0E9FF] dark:bg-[#0F1530] border border-violet-200/80 dark:border-white/10 shadow-card-light dark:shadow-card-dark ${
+        isMobileMode ? 'p-4' : 'p-6 sm:p-8'
+      }`}>
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-mono uppercase font-bold px-2.5 py-0.5 rounded-full bg-violet-200 dark:bg-violet-900/40 text-primaryViolet dark:text-darkPurple border border-violet-300 dark:border-violet-700/60">

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useDisplayMode } from '../context/DisplayModeContext';
 import { CATEGORIES, DEPARTMENTS, Complaint } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
 
@@ -42,6 +43,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const SubmitComplaintPage: React.FC = () => {
   const { user } = useAuth();
+  const { isMobileMode } = useDisplayMode();
   const navigate = useNavigate();
   const errorRef = useRef<HTMLDivElement | null>(null);
 
@@ -222,8 +224,10 @@ export const SubmitComplaintPage: React.FC = () => {
   // SUCCESS SCREEN
   if (submittedComplaint) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-14">
-        <div className="bg-white/95 dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-2xl p-6 sm:p-10 space-y-8 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-300">
+      <div className={`${isMobileMode ? 'w-full px-3.5 py-4' : 'max-w-3xl mx-auto px-4 py-14'}`}>
+        <div className={`bg-white/95 dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-300 ${
+          isMobileMode ? 'p-4 space-y-4' : 'p-6 sm:p-10 space-y-8'
+        }`}>
           <div className="text-center space-y-2">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-mintGreen to-emerald-600 text-white flex items-center justify-center mx-auto shadow-glossy-light dark:shadow-neon-mint/30">
               <CheckCheck className="w-9 h-9" />
@@ -333,21 +337,25 @@ export const SubmitComplaintPage: React.FC = () => {
 
   // FORM VIEW
   return (
-    <div className="max-w-6xl mx-auto px-4 py-12 space-y-8">
+    <div className={`${isMobileMode ? 'w-full px-3.5 py-4 space-y-4' : 'max-w-6xl mx-auto px-4 py-12 space-y-8'}`}>
       <div>
         <div className="inline-flex items-center gap-2 text-xs font-mono text-primaryViolet dark:text-darkPurple font-bold mb-1 px-3 py-1 rounded-full bg-violet-100 dark:bg-violet-950/60 border border-violet-200 dark:border-violet-800/40">
           <Sparkles className="w-3.5 h-3.5 text-primaryViolet dark:text-darkPurple" />
           <span>NATURAL LANGUAGE TRIAGE</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-black text-[#172033] dark:text-[#F8FAFC] mt-1">Submit a Campus Complaint</h1>
+        <h1 className={`font-black text-[#172033] dark:text-[#F8FAFC] mt-1 ${isMobileMode ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>
+          Submit a Campus Complaint
+        </h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
           Describe the problem in plain conversational language. ComplainAI automatically determines the category, evaluates priority, and flags duplicates.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className={`grid grid-cols-1 lg:grid-cols-12 items-start ${isMobileMode ? 'gap-4' : 'gap-8'}`}>
         {/* Main Form (7 cols) */}
-        <form onSubmit={handleSubmit} className="lg:col-span-7 bg-white dark:bg-[#171F3B] rounded-3xl border border-violet-100 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 sm:p-8 space-y-6 backdrop-blur-xl">
+        <form onSubmit={handleSubmit} className={`lg:col-span-7 bg-white dark:bg-[#171F3B] rounded-3xl border border-violet-100 dark:border-white/10 shadow-card-light dark:shadow-card-dark backdrop-blur-xl ${
+          isMobileMode ? 'p-4 space-y-4' : 'p-6 sm:p-8 space-y-6'
+        }`}>
           {error && (
             <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5 font-medium">
               <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />

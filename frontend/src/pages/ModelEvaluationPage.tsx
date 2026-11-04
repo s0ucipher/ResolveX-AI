@@ -16,11 +16,13 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import { useDisplayMode } from '../context/DisplayModeContext';
 import { ClassifyResult } from '../types';
 
 export const ModelEvaluationPage: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const { isMobileMode } = useDisplayMode();
 
   const [modelInfo, setModelInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -79,16 +81,18 @@ export const ModelEvaluationPage: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+    <div className={`${isMobileMode ? 'w-full px-3.5 py-4 space-y-4' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10'}`}>
       {/* Header */}
-      <div className="bg-[#F0E9FF] dark:bg-[#0F1530] p-6 sm:p-8 rounded-3xl border border-violet-200/80 dark:border-white/10 shadow-card-light dark:shadow-card-dark space-y-3">
+      <div className={`bg-[#F0E9FF] dark:bg-[#0F1530] rounded-3xl border border-violet-200/80 dark:border-white/10 shadow-card-light dark:shadow-card-dark ${
+        isMobileMode ? 'p-4 space-y-2' : 'p-6 sm:p-8 space-y-3'
+      }`}>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs uppercase font-mono font-bold px-3 py-1 rounded-full bg-violet-200 dark:bg-violet-900/40 text-primaryViolet dark:text-darkPurple border border-violet-300 dark:border-violet-700/60">
             Real Scikit-Learn Model Telemetry
           </span>
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">• Stratified Held-Out Test Set (80/20)</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">
+        <h1 className={`font-black text-[#172033] dark:text-[#F8FAFC] ${isMobileMode ? 'text-xl' : 'text-2xl sm:text-3xl'}`}>
           Machine Learning Model Evaluation & Viva Defense
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-3xl leading-relaxed">

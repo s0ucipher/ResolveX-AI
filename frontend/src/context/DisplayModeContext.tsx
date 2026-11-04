@@ -22,6 +22,9 @@ export const DisplayModeProvider: React.FC<{ children: React.ReactNode }> = ({ c
         return saved;
       }
     } catch (_) {}
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return 'mobile';
+    }
     return 'desktop';
   });
 
@@ -69,3 +72,4 @@ export const useDisplayMode = (): DisplayModeContextType => {
   }
   return context;
 };
+

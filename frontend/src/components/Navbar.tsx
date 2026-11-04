@@ -35,22 +35,30 @@ export const Navbar: React.FC = () => {
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 dark:bg-[#0F1530]/85 backdrop-blur-xl border-b border-violet-100 dark:border-white/10 shadow-xs transition-colors duration-300">
-      <div className={`${isMobileMode ? 'max-w-[430px]' : 'max-w-7xl'} mx-auto px-4 sm:px-6 lg:px-8 transition-all duration-300`}>
-        <div className="flex items-center justify-between h-18">
+      <div className={`${isMobileMode ? 'max-w-[430px]' : 'max-w-7xl'} mx-auto px-3.5 sm:px-6 lg:px-8 transition-all duration-300`}>
+        <div className={`flex items-center justify-between transition-all duration-300 ${isMobileMode ? 'h-14' : 'h-18'}`}>
           {/* Logo and Brand */}
-          <Link to="/" className="flex items-center gap-3 group">
+          <Link to="/" className={`flex items-center group ${isMobileMode ? 'gap-2' : 'gap-3'}`}>
             <div className="relative">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primaryViolet via-electricPurple to-brightBlue flex items-center justify-center shadow-glossy-light dark:shadow-neon-violet/30 group-hover:scale-105 transition-transform duration-300">
-                <ShieldAlert className="w-5 h-5 text-white" />
+              <div className={`bg-gradient-to-tr from-primaryViolet via-electricPurple to-brightBlue flex items-center justify-center shadow-glossy-light dark:shadow-neon-violet/30 group-hover:scale-105 transition-all duration-300 ${
+                isMobileMode ? 'w-8 h-8 rounded-xl' : 'w-10 h-10 rounded-2xl'
+              }`}>
+                <ShieldAlert className={`${isMobileMode ? 'w-4 h-4' : 'w-5 h-5'} text-white`} />
               </div>
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyanAccent ring-2 ring-white dark:ring-[#0F1530] animate-pulse" />
+              <span className={`absolute -top-0.5 -right-0.5 rounded-full bg-cyanAccent ring-2 ring-white dark:ring-[#0F1530] animate-pulse ${
+                isMobileMode ? 'w-2 h-2' : 'w-2.5 h-2.5'
+              }`} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-xl tracking-tight text-[#172033] dark:text-[#F8FAFC]">
+              <div className="flex items-center gap-1.5">
+                <span className={`font-extrabold tracking-tight text-[#172033] dark:text-[#F8FAFC] ${
+                  isMobileMode ? 'text-lg' : 'text-xl'
+                }`}>
                   Complain<span className="text-transparent bg-clip-text bg-gradient-to-r from-primaryViolet via-brightBlue to-cyanAccent">AI</span>
                 </span>
-                <span className="text-[10px] uppercase font-extrabold tracking-wider px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/70 text-primaryViolet dark:text-darkPurple border border-violet-200 dark:border-violet-800/60 shadow-2xs">
+                <span className={`font-extrabold uppercase tracking-wider rounded-full bg-violet-100 dark:bg-violet-950/70 text-primaryViolet dark:text-darkPurple border border-violet-200 dark:border-violet-800/60 shadow-2xs ${
+                  isMobileMode ? 'text-[9px] px-1.5 py-0.2' : 'text-[10px] px-2 py-0.5'
+                }`}>
                   CAA LIVE
                 </span>
               </div>

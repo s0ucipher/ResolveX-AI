@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { DisplayModeProvider, useDisplayMode } from './context/DisplayModeContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { HomePage } from './pages/HomePage';
 import { SubmitComplaintPage } from './pages/SubmitComplaintPage';
 import { TrackComplaintPage } from './pages/TrackComplaintPage';
@@ -70,7 +71,7 @@ const AppLayout: React.FC = () => {
         }`}
       >
         <Navbar />
-        <main className="flex-1">
+        <main className={`flex-1 ${isMobileMode ? 'pb-24' : ''}`}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/submit" element={<SubmitComplaintPage />} />
@@ -112,6 +113,7 @@ const AppLayout: React.FC = () => {
           </Routes>
         </main>
         <Footer />
+        <MobileBottomNav />
       </div>
     </div>
   );
