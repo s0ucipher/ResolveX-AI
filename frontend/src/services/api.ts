@@ -68,6 +68,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  if (!API_BASE && typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    throw new Error(
+      'Backend URL is not configured. Please add VITE_API_BASE_URL (your deployed Render backend URL, e.g. https://your-backend.onrender.com) in your Vercel Project Settings > Environment Variables, then redeploy the project.'
+    );
+  }
+
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${API_BASE}/api${cleanEndpoint}`;
 
