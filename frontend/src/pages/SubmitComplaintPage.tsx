@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Send,
@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Copy,
   ArrowRight,
-  HelpCircle,
   Building,
   MapPin,
   Clock,
@@ -15,15 +14,13 @@ import {
   ShieldCheck,
   RotateCcw,
   Cpu,
-  Layers,
-  Zap,
-  CheckCheck
+  CheckCheck,
+  Loader2
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { CATEGORIES, DEPARTMENTS, Complaint } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
-import { StatusBadge } from '../components/StatusBadge';
 
 const CAMPUS_LOCATIONS = [
   "Main Academic Block - 2nd Floor",
@@ -41,9 +38,12 @@ const CAMPUS_LOCATIONS = [
   "Auditorium & Seminar Hall"
 ];
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const SubmitComplaintPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const errorRef = useRef<HTMLDivElement | null>(null);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -74,23 +74,35 @@ export const SubmitComplaintPage: React.FC = () => {
   const [submittedComplaint, setSubmittedComplaint] = useState<Complaint | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const reportError = (msg: string) => {
+    setError(msg);
+    setTimeout(() => {
+      errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  };
+
   // Live AI Preview Handler
   const handleLivePreview = async () => {
-    if (!title.trim() || !description.trim()) {
-      setError('Please enter both a title and description before requesting AI analysis.');
+    if (!title.trim() || title.trim().length < 5) {
+      reportError('Please enter a complaint title with at least 5 characters before previewing AI analysis.');
       return;
     }
+    if (!description.trim() || description.trim().length < 15) {
+      reportError('Please enter a detailed description with at least 15 characters before previewing AI analysis.');
+      return;
+    }
+
     setError(null);
     setAnalyzing(true);
     try {
       const [catRes, prioRes] = await Promise.all([
-        api.classifyText(title, description),
+        api.classifyText(title.trim(), description.trim()),
         api.predictPriority({
-          title,
-          description,
-          location,
-          affected_count: affectedCount ? parseInt(affectedCount) : undefined,
-          duration_days: durationDays ? parseInt(durationDays) : undefined,
+          title: title.trim(),
+          description: description.trim(),
+          location: location.trim() || undefined,
+          affected_count: affectedCount ? parseInt(affectedCount, 10) : undefined,
+          duration_days: durationDays ? parseInt(durationDays, 10) : undefined,
         })
       ]);
 
@@ -104,8 +116,13 @@ export const SubmitComplaintPage: React.FC = () => {
         score: prioRes.score,
         priorityReason: prioRes.reasoning
       });
+
+      // Auto-fill category if not already explicitly selected by user
+      if (!category && catRes.predicted_category) {
+        setCategory(catRes.predicted_category);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to generate live preview');
+      reportError(err.message || 'Failed to generate live preview. Please check backend connection.');
     } finally {
       setAnalyzing(false);
     }
@@ -113,17 +130,49 @@ export const SubmitComplaintPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || title.length < 5) {
-      setError('Title must be at least 5 characters long.');
+    if (submitting) return;
+
+    // Field-level validations
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || trimmedTitle.length < 5) {
+      reportError('Complaint summary title must be at least 5 characters long.');
       return;
     }
-    if (!description.trim() || description.length < 15) {
-      setError('Description must be at least 15 characters long so our AI model can evaluate the issue.');
+
+    const trimmedDescription = description.trim();
+    if (!trimmedDescription || trimmedDescription.length < 15) {
+      reportError('Detailed description must be at least 15 characters long so our AI model can evaluate the issue.');
       return;
     }
-    if (!location.trim()) {
-      setError('Please provide a campus location.');
+
+    const trimmedLocation = location.trim();
+    if (!trimmedLocation || trimmedLocation.length < 3) {
+      reportError('Please specify the campus location (at least 3 characters).');
       return;
+    }
+
+    const effectiveEmail = user?.email || userEmail.trim();
+    if (effectiveEmail && !EMAIL_REGEX.test(effectiveEmail)) {
+      reportError('Please provide a valid contact email address (e.g. student@college.edu) or leave it blank.');
+      return;
+    }
+
+    let parsedAffected: number | null = null;
+    if (affectedCount.trim()) {
+      parsedAffected = parseInt(affectedCount.trim(), 10);
+      if (isNaN(parsedAffected) || parsedAffected < 1 || parsedAffected > 10000) {
+        reportError('Estimated people affected must be a valid number between 1 and 10,000.');
+        return;
+      }
+    }
+
+    let parsedDuration: number | null = null;
+    if (durationDays.trim()) {
+      parsedDuration = parseInt(durationDays.trim(), 10);
+      if (isNaN(parsedDuration) || parsedDuration < 0 || parsedDuration > 365) {
+        reportError('Issue duration must be a valid number of days between 0 and 365.');
+        return;
+      }
     }
 
     setError(null);
@@ -131,19 +180,19 @@ export const SubmitComplaintPage: React.FC = () => {
 
     try {
       const created = await api.submitComplaint({
-        title: title.trim(),
-        description: description.trim(),
-        location: location.trim(),
-        category: category ? category : null,
-        assigned_department: department ? department : null,
-        affected_count: affectedCount ? parseInt(affectedCount) : null,
-        duration_days: durationDays ? parseInt(durationDays) : null,
-        user_email: user?.email || (userEmail.trim() ? userEmail.trim() : null)
+        title: trimmedTitle,
+        description: trimmedDescription,
+        location: trimmedLocation,
+        category: category.trim() ? category.trim() : null,
+        assigned_department: department.trim() ? department.trim() : null,
+        affected_count: parsedAffected,
+        duration_days: parsedDuration,
+        user_email: effectiveEmail || null
       });
 
       setSubmittedComplaint(created);
     } catch (err: any) {
-      setError(err.message || 'Failed to submit complaint. Please check server status.');
+      reportError(err.message || 'Failed to submit complaint. Please check server connectivity and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -195,8 +244,9 @@ export const SubmitComplaintPage: React.FC = () => {
               <div className="text-xs text-purple-100 mt-1 font-medium">Share or search this ID anytime to verify maintenance updates.</div>
             </div>
             <button
+              type="button"
               onClick={handleCopyId}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-primaryViolet text-xs font-black shadow-md hover:scale-102 transition-all whitespace-nowrap"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-primaryViolet text-xs font-black shadow-md hover:scale-102 transition-all whitespace-nowrap cursor-pointer"
             >
               <Copy className="w-4 h-4" />
               <span>{copied ? 'Copied to Clipboard!' : 'Copy Tracking ID'}</span>
@@ -219,12 +269,12 @@ export const SubmitComplaintPage: React.FC = () => {
               <div className="bg-white dark:bg-[#171F3B] p-4 rounded-xl border border-slate-200 dark:border-white/10 shadow-2xs space-y-2">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Classified Category</div>
                 <div className="text-sm font-extrabold text-[#172033] dark:text-[#F8FAFC]">{submittedComplaint.category}</div>
-                {submittedComplaint.classification_confidence && (
+                {submittedComplaint.classification_confidence !== null && submittedComplaint.classification_confidence !== undefined && (
                   <div className="flex items-center gap-2 pt-1">
                     <div className="flex-1 bg-slate-100 dark:bg-white/10 h-2 rounded-full overflow-hidden">
                       <div
                         className="bg-gradient-to-r from-primaryViolet to-brightBlue h-full rounded-full"
-                        style={{ width: `${submittedComplaint.classification_confidence * 100}%` }}
+                        style={{ width: `${Math.min(100, Math.max(0, submittedComplaint.classification_confidence * 100))}%` }}
                       />
                     </div>
                     <span className="text-[11px] font-mono font-bold text-primaryViolet dark:text-darkCyan">
@@ -244,10 +294,12 @@ export const SubmitComplaintPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-[#171F3B] p-4 rounded-xl border border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-1 shadow-2xs">
-              <div className="font-extrabold text-primaryViolet dark:text-darkPurple text-[11px] uppercase tracking-wider">Why this prediction?</div>
-              <p>{submittedComplaint.priority_explanation}</p>
-            </div>
+            {submittedComplaint.priority_explanation && (
+              <div className="bg-white dark:bg-[#171F3B] p-4 rounded-xl border border-slate-200 dark:border-white/10 text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-1 shadow-2xs">
+                <div className="font-extrabold text-primaryViolet dark:text-darkPurple text-[11px] uppercase tracking-wider">Why this prediction?</div>
+                <p>{submittedComplaint.priority_explanation}</p>
+              </div>
+            )}
 
             <div className="p-3 rounded-xl bg-violet-100/60 dark:bg-white/5 border border-violet-200 dark:border-white/10 text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-primaryViolet dark:text-darkCyan shrink-0" />
@@ -266,8 +318,9 @@ export const SubmitComplaintPage: React.FC = () => {
             </Link>
 
             <button
+              type="button"
               onClick={handleResetForm}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm border border-slate-200 dark:border-white/10 transition-colors"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm border border-slate-200 dark:border-white/10 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-4 h-4" />
               <span>Lodge Another Complaint</span>
@@ -298,7 +351,10 @@ export const SubmitComplaintPage: React.FC = () => {
           {error && (
             <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5 font-medium">
               <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <div className="space-y-0.5 flex-1">
+                <div className="font-bold text-rose-800 dark:text-rose-200">Submission Notice</div>
+                <div className="leading-relaxed">{error}</div>
+              </div>
             </div>
           )}
 
@@ -362,7 +418,7 @@ export const SubmitComplaintPage: React.FC = () => {
                   type="button"
                   key={loc}
                   onClick={() => setLocation(loc)}
-                  className="text-[10px] px-2.5 py-1 rounded-lg bg-[#F0E9FF] dark:bg-white/5 hover:bg-violet-100 dark:hover:bg-white/10 text-primaryViolet dark:text-darkCyan border border-violet-200 dark:border-white/10 transition-colors font-semibold"
+                  className="text-[10px] px-2.5 py-1 rounded-lg bg-[#F0E9FF] dark:bg-white/5 hover:bg-violet-100 dark:hover:bg-white/10 text-primaryViolet dark:text-darkCyan border border-violet-200 dark:border-white/10 transition-colors font-semibold cursor-pointer"
                 >
                   {loc.split('-')[0].trim()}
                 </button>
@@ -456,25 +512,57 @@ export const SubmitComplaintPage: React.FC = () => {
             </div>
           )}
 
+          {/* Action Row Error Display */}
+          {error && (
+            <div
+              ref={errorRef}
+              className="p-4 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-3 font-medium animate-in fade-in duration-200"
+            >
+              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+              <div className="space-y-0.5 flex-1">
+                <div className="font-bold text-rose-800 dark:text-rose-200">Submission Notice</div>
+                <div className="leading-relaxed">{error}</div>
+              </div>
+            </div>
+          )}
+
           {/* Action Row */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100 dark:border-white/10">
             <button
               type="button"
               onClick={handleLivePreview}
-              disabled={analyzing || !title.trim() || !description.trim()}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-violet-100/80 dark:bg-violet-900/40 hover:bg-violet-200 dark:hover:bg-violet-900/60 text-primaryViolet dark:text-darkPurple border border-violet-200 dark:border-violet-700/60 text-xs font-extrabold disabled:opacity-50 transition-all"
+              disabled={analyzing || submitting || !title.trim() || !description.trim()}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-violet-100/80 dark:bg-violet-900/40 hover:bg-violet-200 dark:hover:bg-violet-900/60 text-primaryViolet dark:text-darkPurple border border-violet-200 dark:border-violet-700/60 text-xs font-extrabold disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed"
             >
-              <Sparkles className="w-4 h-4 text-primaryViolet dark:text-darkPurple" />
-              <span>{analyzing ? 'Evaluating Text...' : 'Preview AI Analysis'}</span>
+              {analyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-primaryViolet dark:text-darkPurple" />
+                  <span>Analyzing with AI...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-primaryViolet dark:text-darkPurple" />
+                  <span>Preview AI Analysis</span>
+                </>
+              )}
             </button>
 
             <button
               type="submit"
               disabled={submitting}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-primaryViolet via-indigo-600 to-brightBlue text-white font-extrabold text-xs sm:text-sm shadow-glossy-light dark:shadow-neon-violet/30 hover:opacity-95 disabled:opacity-50 transition-all"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-primaryViolet via-indigo-600 to-brightBlue text-white font-extrabold text-xs sm:text-sm shadow-glossy-light dark:shadow-neon-violet/30 hover:opacity-95 disabled:opacity-50 transition-all cursor-pointer disabled:cursor-not-allowed"
             >
-              <Send className="w-4 h-4" />
-              <span>{submitting ? 'Lodging Complaint...' : 'Submit Complaint'}</span>
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Submitting Complaint...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span>Submit Complaint</span>
+                </>
+              )}
             </button>
           </div>
         </form>
@@ -500,7 +588,7 @@ export const SubmitComplaintPage: React.FC = () => {
                   <div className="flex-1 bg-slate-100 dark:bg-white/10 h-2 rounded-full overflow-hidden">
                     <div
                       className="bg-gradient-to-r from-primaryViolet to-brightBlue h-full rounded-full transition-all duration-300"
-                      style={{ width: `${(livePrediction.confidence || 0) * 100}%` }}
+                      style={{ width: `${Math.min(100, Math.max(0, (livePrediction.confidence || 0) * 100))}%` }}
                     />
                   </div>
                   <span className="text-xs font-mono font-bold text-primaryViolet dark:text-darkCyan">
