@@ -1,59 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Send,
   Search,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  Play,
   ArrowRight,
-  Filter,
   PlusCircle,
   Inbox,
-  Sparkles,
-  TrendingUp,
-  Activity,
-  CheckCheck,
-  FileText
+  RefreshCw,
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
-import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useDisplayMode } from '../context/DisplayModeContext';
-import { Complaint } from '../types';
+import { useComplaints } from '../context/ComplaintsContext';
 import { PriorityBadge } from '../components/PriorityBadge';
 import { StatusBadge } from '../components/StatusBadge';
 
 export const UserDashboardPage: React.FC = () => {
   const { user } = useAuth();
   const { isMobileMode } = useDisplayMode();
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { complaints, loading, error, stats, refreshComplaints } = useComplaints();
 
-  // Filters
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      try {
-        const list = await api.getMyComplaints();
-        setComplaints(list);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load complaints');
-      } finally {
-        setLoading(false);
-      }
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshComplaints();
+    } finally {
+      setRefreshing(false);
     }
-    loadData();
-  }, []);
-
-  const total = complaints.length;
-  const openCount = complaints.filter(c => ['Submitted', 'Under Review', 'Assigned'].includes(c.status)).length;
-  const inProgressCount = complaints.filter(c => c.status === 'In Progress').length;
-  const resolvedCount = complaints.filter(c => c.status === 'Resolved').length;
+  };
 
   const filtered = complaints.filter(c => {
     const matchesSearch = !searchTerm ||
@@ -75,44 +53,59 @@ export const UserDashboardPage: React.FC = () => {
             <span className="w-2 h-2 rounded-full bg-primaryViolet dark:bg-darkPurple" />
             <span>STUDENT PERSONAL PORTAL</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">Welcome, {user?.name}</h1>
+          <h1 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">
+            Welcome, {user?.name || 'Student'}
+          </h1>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
             Monitor all your lodged campus maintenance requests, track progress updates, and inspect AI triage results.
           </p>
         </div>
 
-        <Link
-          to="/submit"
-          className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-primaryViolet to-brightBlue text-white font-bold text-xs sm:text-sm shadow-glossy-light dark:shadow-neon-violet/30 hover:scale-102 transition-transform self-start sm:self-auto"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>Lodge New Complaint</span>
-        </Link>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={refreshing || loading}
+            title="Refresh latest database records"
+            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-white dark:bg-[#171F3B] hover:bg-slate-50 dark:hover:bg-[#1E294B] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-primaryViolet dark:text-darkCyan ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'Syncing...' : 'Sync Records'}</span>
+          </button>
+
+          <Link
+            to="/submit"
+            className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-primaryViolet to-brightBlue text-white font-bold text-xs sm:text-sm shadow-glossy-light dark:shadow-neon-violet/30 hover:scale-102 transition-transform"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Lodge New Complaint</span>
+          </Link>
+        </div>
       </div>
 
-      {/* KPI Metrics Grid */}
+      {/* KPI Metrics Grid - Immediately calculated from verified records */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 rounded-3xl bg-[#F0E9FF] dark:bg-[#171F3B] border border-violet-200 dark:border-white/10 shadow-card-light dark:shadow-card-dark">
           <div className="text-[11px] font-bold uppercase tracking-wider text-primaryViolet dark:text-darkPurple mb-1">Total Lodged</div>
-          <div className="text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">{total}</div>
+          <div className="text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">{stats.total}</div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-medium">All time campus submissions</div>
         </div>
 
         <div className="p-5 rounded-3xl bg-[#FFF4E8] dark:bg-[#171F3B] border border-amber-200 dark:border-white/10 shadow-card-light dark:shadow-card-dark">
           <div className="text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-darkAmber mb-1">In Triage</div>
-          <div className="text-3xl font-black text-amber-600 dark:text-darkAmber">{openCount}</div>
+          <div className="text-3xl font-black text-amber-600 dark:text-darkAmber">{stats.openCount}</div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-medium">Submitted / Under Review</div>
         </div>
 
         <div className="p-5 rounded-3xl bg-[#E7F4FF] dark:bg-[#171F3B] border border-blue-200 dark:border-white/10 shadow-card-light dark:shadow-card-dark">
           <div className="text-[11px] font-bold uppercase tracking-wider text-brightBlue dark:text-darkCyan mb-1">In Progress</div>
-          <div className="text-3xl font-black text-brightBlue dark:text-darkCyan">{inProgressCount}</div>
+          <div className="text-3xl font-black text-brightBlue dark:text-darkCyan">{stats.inProgressCount}</div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-medium">Crew actively working on-site</div>
         </div>
 
         <div className="p-5 rounded-3xl bg-[#E8FFF5] dark:bg-[#171F3B] border border-emerald-200 dark:border-white/10 shadow-card-light dark:shadow-card-dark">
           <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-darkMint mb-1">Resolved</div>
-          <div className="text-3xl font-black text-emerald-600 dark:text-darkMint">{resolvedCount}</div>
+          <div className="text-3xl font-black text-emerald-600 dark:text-darkMint">{stats.resolvedCount}</div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 font-medium">Maintenance confirmed done</div>
         </div>
       </div>
@@ -132,7 +125,14 @@ export const UserDashboardPage: React.FC = () => {
             <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-2.5" />
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            {loading && complaints.length > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-900/40 text-primaryViolet dark:text-cyan-400 text-[10px] font-bold animate-pulse">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Syncing live updates...</span>
+              </span>
+            )}
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -149,20 +149,55 @@ export const UserDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Complaints Table */}
-        {loading ? (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400 text-xs font-mono">Querying database records...</div>
+        {/* Complaints Table / States */}
+        {loading && complaints.length === 0 ? (
+          <div className="p-16 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primaryViolet to-brightBlue text-white flex items-center justify-center mx-auto shadow-glossy-light animate-pulse">
+              <RefreshCw className="w-6 h-6 animate-spin" />
+            </div>
+            <div className="font-extrabold text-[#172033] dark:text-[#F8FAFC] text-sm">Querying database records...</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-medium">
+              Connecting to campus database and retrieving verified tickets for your account.
+            </p>
+          </div>
+        ) : error && complaints.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/20 text-rose-500 flex items-center justify-center mx-auto border border-rose-200 dark:border-rose-500/40">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="font-extrabold text-rose-800 dark:text-rose-200 text-sm">Unable to connect to database</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primaryViolet text-white text-xs font-bold shadow-xs hover:bg-violet-700 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry Connection</span>
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="p-16 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto border border-slate-200 dark:border-white/10">
               <Inbox className="w-6 h-6 text-slate-400 dark:text-slate-500" />
             </div>
             <div className="font-extrabold text-[#172033] dark:text-[#F8FAFC] text-sm">No complaints found</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-medium">
               {searchTerm || statusFilter
                 ? 'Try adjusting your search query or status filter.'
                 : 'You have not lodged any campus tickets yet.'}
             </p>
+            {!searchTerm && !statusFilter && (
+              <Link
+                to="/submit"
+                className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primaryViolet text-white text-xs font-bold shadow-xs hover:bg-violet-700 transition-colors"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Submit Your First Complaint</span>
+              </Link>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

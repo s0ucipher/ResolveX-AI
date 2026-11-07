@@ -2,6 +2,7 @@ import uuid
 import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import Complaint, StatusHistory, ComplaintRelation, User
@@ -61,6 +62,17 @@ def submit_complaint(
     user_id = current_user.id
     user_email = current_user.email
     now = get_utc_now()
+
+    # Prevent accidental duplicate creation within a 30-second window
+    recent_cutoff = now - datetime.timedelta(seconds=30)
+    existing_dup = db.query(Complaint).filter(
+        or_(Complaint.user_id == user_id, func.lower(Complaint.user_email) == user_email.lower()),
+        Complaint.title == payload.title.strip(),
+        Complaint.description == payload.description.strip(),
+        Complaint.created_at >= recent_cutoff
+    ).first()
+    if existing_dup:
+        return ComplaintOut.model_validate(existing_dup)
 
     complaint = Complaint(
         public_id=public_id,
@@ -130,7 +142,12 @@ def list_user_complaints(
     if current_user.role == "admin":
         complaints = db.query(Complaint).order_by(Complaint.created_at.desc()).all()
     else:
-        complaints = db.query(Complaint).filter(Complaint.user_id == current_user.id).order_by(Complaint.created_at.desc()).all()
+        complaints = db.query(Complaint).filter(
+            or_(
+                Complaint.user_id == current_user.id,
+                func.lower(Complaint.user_email) == current_user.email.lower()
+            )
+        ).order_by(Complaint.created_at.desc()).all()
     return [ComplaintOut.model_validate(c) for c in complaints]
 
 @router.get("/{public_id}", response_model=ComplaintOut)

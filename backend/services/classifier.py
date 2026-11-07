@@ -36,13 +36,13 @@ class ComplaintClassifierService:
         top_idx = sorted_indices[0]
         runner_up_idx = sorted_indices[1] if len(sorted_indices) > 1 else top_idx
         
-        predicted_category = self.classes_[top_idx]
+        predicted_category = str(self.classes_[top_idx])
         top_prob = float(probabilities[top_idx])
         runner_up_prob = float(probabilities[runner_up_idx])
         
         # Check uncertainty
         # Confidence below 0.38 or close margin between top two predictions
-        is_uncertain = (top_prob < 0.38) or (top_prob - runner_up_prob < 0.12)
+        is_uncertain = bool((top_prob < 0.38) or (top_prob - runner_up_prob < 0.12))
         uncertainty_note = None
         if is_uncertain:
             uncertainty_note = (
@@ -63,16 +63,16 @@ class ComplaintClassifierService:
             sorted_feats = np.argsort(scores)[::-1]
             for idx in sorted_feats[:5]:
                 if scores[idx] > 0.05:
-                    term = self.feature_names[non_zero_indices[idx]]
+                    term = str(self.feature_names[non_zero_indices[idx]])
                     influential_features.append(term)
                     
         # If no positive n-grams matched, fallback to significant keywords in title
         if not influential_features:
-            influential_features = [w for w in title.lower().split() if len(w) > 4][:3]
+            influential_features = [str(w) for w in title.lower().split() if len(w) > 4][:3]
 
         # Category probabilities map
         cat_probs = {
-            self.classes_[i]: round(float(probabilities[i]), 4)
+            str(self.classes_[i]): round(float(probabilities[i]), 4)
             for i in sorted_indices[:5]
         }
 

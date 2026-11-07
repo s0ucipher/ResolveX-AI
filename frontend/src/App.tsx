@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ComplaintsProvider } from './context/ComplaintsContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { DisplayModeProvider, useDisplayMode } from './context/DisplayModeContext';
 import { Navbar } from './components/Navbar';
@@ -201,9 +202,11 @@ export const App: React.FC = () => {
     <ThemeProvider>
       <DisplayModeProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <AppLayout />
-          </BrowserRouter>
+          <ComplaintsProvider>
+            <BrowserRouter>
+              <AppLayout />
+            </BrowserRouter>
+          </ComplaintsProvider>
         </AuthProvider>
       </DisplayModeProvider>
     </ThemeProvider>

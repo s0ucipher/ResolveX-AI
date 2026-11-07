@@ -240,3 +240,59 @@ def test_analytics_endpoints():
 
     prios = client.get("/api/analytics/priorities")
     assert prios.status_code == 200
+
+def test_auto_category_classification_and_immediate_dashboard_listing():
+    student_token = get_auth_token("student@complainai.ai", "Student@ComplainAI2026!")
+    student_headers = {"Authorization": f"Bearer {student_token}"}
+
+    # 1. Submit complaint with auto category prediction
+    unique_marker = uuid.uuid4().hex[:6]
+    title = f"Exposed electrical wires sparking near staircase {unique_marker}"
+    desc = "Exposed electrical wires are hanging from the ceiling near the staircase. The wires are sparking intermittently."
+    
+    payload = {
+        "title": title,
+        "description": desc,
+        "location": "Main Academic Block - 2nd Floor",
+        "category": None,
+        "affected_count": 150,
+        "duration_days": 1,
+        "user_email": "student@complainai.ai"
+    }
+    
+    res = client.post("/api/complaints", json=payload, headers=student_headers)
+    assert res.status_code == 201
+    comp = res.json()
+    assert comp["category"] == "Electrical and lighting"
+    assert comp["predicted_category"] == "Electrical and lighting"
+    assert comp["status"] == "Submitted"
+    pub_id = comp["public_id"]
+
+    # 2. Verify Deduplication: immediate resubmission within 30s returns identical record
+    res_dup = client.post("/api/complaints", json=payload, headers=student_headers)
+    assert res_dup.status_code in [200, 201]
+    assert res_dup.json()["public_id"] == pub_id
+
+    # 3. Verify user complaints listing includes the newly lodged complaint immediately
+    list_res = client.get("/api/complaints", headers=student_headers)
+    assert list_res.status_code == 200
+    user_comps = list_res.json()
+    matching = [c for c in user_comps if c["public_id"] == pub_id]
+    assert len(matching) == 1
+    assert matching[0]["category"] == "Electrical and lighting"
+
+    # 4. Manual override category test
+    manual_marker = uuid.uuid4().hex[:6]
+    manual_payload = {
+        "title": f"Room heater short circuit {manual_marker}",
+        "description": "Room heater cord shorted out in dorm room.",
+        "location": "Boys Hostel 2",
+        "category": "Hostel and accommodation",
+        "affected_count": 2,
+        "duration_days": 1,
+        "user_email": "student@complainai.ai"
+    }
+    res_manual = client.post("/api/complaints", json=manual_payload, headers=student_headers)
+    assert res_manual.status_code == 201
+    assert res_manual.json()["category"] == "Hostel and accommodation"
+
