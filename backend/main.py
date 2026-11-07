@@ -17,6 +17,18 @@ from backend.services.classifier import classifier_service
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     try:
+        from sqlalchemy import inspect, text
+        with engine.connect() as conn:
+            inspector = inspect(engine)
+            if "users" in inspector.get_table_names():
+                columns = [c["name"] for c in inspector.get_columns("users")]
+                if "firebase_uid" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN firebase_uid VARCHAR(128)"))
+                    conn.commit()
+    except Exception as e:
+        print(f"[Schema compatibility notice] {e}")
+
+    try:
         from backend.seed import seed_database
         seed_database()
     except Exception as e:

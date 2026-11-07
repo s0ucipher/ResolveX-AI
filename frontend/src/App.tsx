@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ShieldAlert } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { DisplayModeProvider, useDisplayMode } from './context/DisplayModeContext';
@@ -16,19 +17,71 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminComplaintDetailPage } from './pages/AdminComplaintDetailPage';
 import { ModelEvaluationPage } from './pages/ModelEvaluationPage';
 
-// Protected Route wrapper for regular authenticated users
+// Protected Route wrapper for regular authenticated users (Mandatory Login Enforcement)
 const ProtectedUserRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="p-12 text-center text-slate-500 font-mono text-xs">Authenticating...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-12 text-center">
+        <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primaryViolet to-brightBlue flex items-center justify-center text-white mb-3 shadow-glossy-light animate-pulse">
+          <ShieldAlert className="w-5 h-5" />
+        </div>
+        <div className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300">
+          Verifying ComplainAI authentication...
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        state={{
+          from: location.pathname + location.search,
+          message: 'Please sign in or create an account to access ComplainAI features.'
+        }}
+        replace
+      />
+    );
+  }
+
   return <>{children}</>;
 };
 
 // Protected Route wrapper for administrators
 const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading, isAdmin } = useAuth();
-  if (loading) return <div className="p-12 text-center text-slate-500 font-mono text-xs">Checking permissions...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-12 text-center">
+        <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primaryViolet to-brightBlue flex items-center justify-center text-white mb-3 shadow-glossy-light animate-pulse">
+          <ShieldAlert className="w-5 h-5" />
+        </div>
+        <div className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300">
+          Checking administrative clearance...
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        state={{
+          from: location.pathname + location.search,
+          message: 'Please sign in or create an account to access ComplainAI features.'
+        }}
+        replace
+      />
+    );
+  }
+
   if (!isAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
@@ -73,12 +126,36 @@ const AppLayout: React.FC = () => {
         <Navbar />
         <main className={`flex-1 ${isMobileMode ? 'pb-24' : ''}`}>
           <Routes>
+            {/* Public Pages */}
             <Route path="/" element={<HomePage />} />
-            <Route path="/submit" element={<SubmitComplaintPage />} />
-            <Route path="/track" element={<TrackComplaintPage />} />
-            <Route path="/model-eval" element={<ModelEvaluationPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+
+            {/* Mandatory Protected Application Pages */}
+            <Route
+              path="/submit"
+              element={
+                <ProtectedUserRoute>
+                  <SubmitComplaintPage />
+                </ProtectedUserRoute>
+              }
+            />
+            <Route
+              path="/track"
+              element={
+                <ProtectedUserRoute>
+                  <TrackComplaintPage />
+                </ProtectedUserRoute>
+              }
+            />
+            <Route
+              path="/model-eval"
+              element={
+                <ProtectedUserRoute>
+                  <ModelEvaluationPage />
+                </ProtectedUserRoute>
+              }
+            />
 
             {/* User Dashboard */}
             <Route

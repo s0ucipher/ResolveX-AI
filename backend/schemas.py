@@ -20,8 +20,13 @@ class UserOut(UserBase):
     role: str
     is_active: bool
     created_at: datetime.datetime
+    firebase_uid: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class FirebaseSyncRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
 
 class Token(BaseModel):
     access_token: str

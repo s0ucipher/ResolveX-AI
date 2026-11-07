@@ -30,7 +30,7 @@ def generate_public_id() -> str:
 def submit_complaint(
     payload: ComplaintCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     # 1. Run Machine Learning Category Prediction
     ai_result = classifier_service.classify(payload.title, payload.description)
@@ -57,9 +57,9 @@ def submit_complaint(
     while db.query(Complaint).filter(Complaint.public_id == public_id).first():
         public_id = generate_public_id()
 
-    # 4. Persist Complaint Record
-    user_id = current_user.id if current_user else None
-    user_email = current_user.email if current_user else payload.user_email
+    # 4. Persist Complaint Record with authenticated user ownership
+    user_id = current_user.id
+    user_email = current_user.email
     now = get_utc_now()
 
     complaint = Complaint(
@@ -90,8 +90,8 @@ def submit_complaint(
         complaint_id=complaint.id,
         previous_status=None,
         new_status="Submitted",
-        note=f"Complaint lodged into ComplainAI system. AI Category: '{predicted_category}' ({confidence*100:.1f}% confidence). Priority: '{predicted_priority}'.",
-        changed_by=current_user.name if current_user else (payload.user_email or "User"),
+        note=f"Complaint lodged by {current_user.name} ({current_user.email}). AI Category: '{predicted_category}' ({confidence*100:.1f}% confidence). Priority: '{predicted_priority}'.",
+        changed_by=current_user.name,
         created_at=now
     )
     db.add(history)
@@ -136,7 +136,8 @@ def list_user_complaints(
 @router.get("/{public_id}", response_model=ComplaintOut)
 def get_complaint_by_public_id(
     public_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     complaint = db.query(Complaint).filter(Complaint.public_id == public_id.strip().upper()).first()
     if not complaint:
@@ -144,12 +145,25 @@ def get_complaint_by_public_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No complaint found with tracking ID '{public_id}'"
         )
+
+    # Permission check: Administrators can view all; regular users only view their own
+    is_owner = (
+        (complaint.user_id is not None and complaint.user_id == current_user.id) or
+        (complaint.user_email and complaint.user_email.lower() == current_user.email.lower())
+    )
+    if current_user.role != "admin" and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this complaint."
+        )
+
     return ComplaintOut.model_validate(complaint)
 
 @router.get("/{public_id}/history", response_model=List[StatusHistoryOut])
 def get_complaint_history(
     public_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     complaint = db.query(Complaint).filter(Complaint.public_id == public_id.strip().upper()).first()
     if not complaint:
@@ -157,4 +171,16 @@ def get_complaint_history(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No complaint found with tracking ID '{public_id}'"
         )
+
+    # Permission check: Administrators can view all; regular users only view their own
+    is_owner = (
+        (complaint.user_id is not None and complaint.user_id == current_user.id) or
+        (complaint.user_email and complaint.user_email.lower() == current_user.email.lower())
+    )
+    if current_user.role != "admin" and not is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this complaint history."
+        )
+
     return [StatusHistoryOut.model_validate(h) for h in complaint.history]

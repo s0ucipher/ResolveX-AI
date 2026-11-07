@@ -113,6 +113,13 @@ export const api = {
     return request<User>('/auth/me');
   },
 
+  async syncUser(name?: string, email?: string): Promise<User> {
+    return request<User>('/auth/sync', {
+      method: 'POST',
+      body: JSON.stringify({ name, email }),
+    });
+  },
+
   // --- Complaints ---
   async submitComplaint(data: {
     title: string;

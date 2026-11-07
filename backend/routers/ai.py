@@ -1,6 +1,6 @@
 import os
 import json
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from backend.schemas import (
     ClassifyRequest,
     ClassifyResponse,
@@ -10,8 +10,9 @@ from backend.schemas import (
 from backend.services.classifier import classifier_service
 from backend.services.priority import calculate_priority
 from backend.ml.train import REPORT_JSON_PATH
+from backend.auth import get_current_user
 
-router = APIRouter(prefix="/api/ai", tags=["AI & Machine Learning"])
+router = APIRouter(prefix="/api/ai", tags=["AI & Machine Learning"], dependencies=[Depends(get_current_user)])
 
 @router.post("/classify", response_model=ClassifyResponse)
 def test_classification(payload: ClassifyRequest):

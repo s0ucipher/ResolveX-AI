@@ -42,11 +42,31 @@ def test_register_new_user():
     assert data["user"]["role"] == "user"
     assert "access_token" in data
 
+def get_auth_token(email="student@complainai.ai", password="Student@ComplainAI2026!"):
+    res = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert res.status_code == 200
+    return res.json()["access_token"]
+
+def test_unauthenticated_requests_blocked():
+    # Anonymous submit complaint is rejected with 401
+    res = client.post("/api/complaints", json={"title": "Test", "description": "Test"})
+    assert res.status_code == 401
+
+    # Anonymous AI classification is rejected with 401
+    res = client.post("/api/ai/classify", json={"title": "Test", "description": "Test"})
+    assert res.status_code == 401
+
+    # Anonymous complaint tracking is rejected with 401
+    res = client.get("/api/complaints/RX-2026-ELE001")
+    assert res.status_code == 401
+
 def test_ai_classification_endpoint():
+    token = get_auth_token()
+    headers = {"Authorization": f"Bearer {token}"}
     res = client.post("/api/ai/classify", json={
         "title": "Severe electric shock from laboratory switchboard",
         "description": "The switchboard near table 4 gave an electrical shock to a student. Live wire exposed and sparking."
-    })
+    }, headers=headers)
     assert res.status_code == 200
     data = res.json()
     assert data["predicted_category"] == "Electrical and lighting"
@@ -54,13 +74,15 @@ def test_ai_classification_endpoint():
     assert len(data["influential_features"]) > 0
 
 def test_ai_priority_prediction_critical_safety():
+    token = get_auth_token()
+    headers = {"Authorization": f"Bearer {token}"}
     res = client.post("/api/ai/predict-priority", json={
         "title": "Live bare wire sparking in auditorium",
         "description": "Exposed high voltage cables sparking with smoke near exit doors.",
         "location": "Auditorium & Seminar Hall",
         "affected_count": 500,
         "duration_days": 1
-    })
+    }, headers=headers)
     assert res.status_code == 200
     data = res.json()
     assert data["recommended_priority"] == "Critical"
@@ -68,18 +90,23 @@ def test_ai_priority_prediction_critical_safety():
     assert data["score"] >= 80
 
 def test_ai_priority_prediction_low_issue():
+    token = get_auth_token()
+    headers = {"Authorization": f"Bearer {token}"}
     res = client.post("/api/ai/predict-priority", json={
         "title": "Notice board corner loose",
         "description": "Small thumb tack missing on the club notice board on wall.",
         "location": "Corridor 1",
         "affected_count": 1,
         "duration_days": 1
-    })
+    }, headers=headers)
     assert res.status_code == 200
     data = res.json()
     assert data["recommended_priority"] in ["Low", "Medium"]
 
 def test_submit_complaint_and_track():
+    token = get_auth_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
     payload = {
         "title": "Choked urinal drain leaking foul water across washroom floor",
         "description": "The floor drain in ground floor gents washroom is heavily choked and dirty wastewater is flooding out.",
@@ -89,7 +116,7 @@ def test_submit_complaint_and_track():
         "duration_days": 2,
         "user_email": "student@complainai.ai"
     }
-    res = client.post("/api/complaints", json=payload)
+    res = client.post("/api/complaints", json=payload, headers=headers)
     assert res.status_code == 201
     comp = res.json()
     assert comp["public_id"].startswith("RX-2026-")
@@ -97,12 +124,48 @@ def test_submit_complaint_and_track():
     assert comp["status"] == "Submitted"
     public_id = comp["public_id"]
 
-    track_res = client.get(f"/api/complaints/{public_id}")
+    track_res = client.get(f"/api/complaints/{public_id}", headers=headers)
     assert track_res.status_code == 200
     track_data = track_res.json()
     assert track_data["public_id"] == public_id
     assert track_data["category"] == "Plumbing and sanitation"
     assert len(track_data["history"]) >= 1
+
+def test_user_complaint_privacy_isolation():
+    student_token = get_auth_token("student@complainai.ai", "Student@ComplainAI2026!")
+    student_headers = {"Authorization": f"Bearer {student_token}"}
+
+    # Submit a complaint as student
+    res = client.post("/api/complaints", json={
+        "title": "Private room lock broken in hostel",
+        "description": "Room door latch broke and student cannot secure luggage.",
+        "location": "Boys Hostel 1",
+        "affected_count": 1,
+        "duration_days": 1
+    }, headers=student_headers)
+    assert res.status_code == 201
+    public_id = res.json()["public_id"]
+
+    # Register another regular student
+    other_email = f"other_{uuid.uuid4().hex[:6]}@college.edu"
+    reg_res = client.post("/api/auth/register", json={
+        "name": "Other Student",
+        "email": other_email,
+        "password": "Password123!"
+    })
+    assert reg_res.status_code == 201
+    other_token = reg_res.json()["access_token"]
+    other_headers = {"Authorization": f"Bearer {other_token}"}
+
+    # Other student cannot access first student's private complaint -> 403 Forbidden
+    other_get = client.get(f"/api/complaints/{public_id}", headers=other_headers)
+    assert other_get.status_code == 403
+
+    # Admin CAN access any complaint
+    admin_token = get_auth_token("admin@complainai.ai", "Admin@ComplainAI2026!")
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    admin_get = client.get(f"/api/complaints/{public_id}", headers=admin_headers)
+    assert admin_get.status_code == 200
 
 def test_admin_status_transitions_and_override():
     login_res = client.post("/api/auth/login", json={
@@ -117,7 +180,7 @@ def test_admin_status_transitions_and_override():
         "description": "Glass shard cracked and dangerous during high winds in lecture room.",
         "location": "Main Academic Block - 2nd Floor",
         "user_email": "student@complainai.ai"
-    })
+    }, headers=headers)
     public_id = submit_res.json()["public_id"]
 
     # Invalid Transition (Submitted -> Resolved directly should fail with 400)
@@ -156,7 +219,7 @@ def test_admin_status_transitions_and_override():
     assert prio_res.json()["final_priority"] == "High"
 
     # Check history has all audited steps
-    hist_res = client.get(f"/api/complaints/{public_id}/history")
+    hist_res = client.get(f"/api/complaints/{public_id}/history", headers=headers)
     assert hist_res.status_code == 200
     history_list = hist_res.json()
     assert len(history_list) >= 3

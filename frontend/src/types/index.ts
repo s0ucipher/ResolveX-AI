@@ -5,6 +5,7 @@ export interface User {
   role: 'user' | 'admin';
   is_active: boolean;
   created_at: string;
+  firebase_uid?: string | null;
 }
 
 export interface StatusHistory {

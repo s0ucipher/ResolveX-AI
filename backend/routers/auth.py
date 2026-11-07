@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import User
-from backend.schemas import UserCreate, UserLogin, UserOut, Token
+from backend.schemas import UserCreate, UserLogin, UserOut, Token, FirebaseSyncRequest
 from backend.auth import (
     get_password_hash,
     verify_password,
@@ -70,6 +70,22 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 def get_me(current_user: User = Depends(get_current_user)):
+    return UserOut.model_validate(current_user)
+
+@router.post("/sync", response_model=UserOut)
+def sync_firebase_user(
+    current_user: User = Depends(get_current_user),
+    sync_data: FirebaseSyncRequest = None,
+    db: Session = Depends(get_db)
+):
+    if sync_data:
+        changed = False
+        if sync_data.name and sync_data.name.strip() and current_user.name != sync_data.name.strip():
+            current_user.name = sync_data.name.strip()
+            changed = True
+        if changed:
+            db.commit()
+            db.refresh(current_user)
     return UserOut.model_validate(current_user)
 
 @router.post("/logout")

@@ -7,9 +7,10 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    firebase_uid = Column(String(128), unique=True, index=True, nullable=True)
     name = Column(String(100), nullable=False)
     email = Column(String(120), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)
     role = Column(String(20), default="user", nullable=False)  # "user" or "admin"
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
