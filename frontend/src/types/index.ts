@@ -116,7 +116,8 @@ export const DEPARTMENTS = [
   "Audio-Visual & Classroom Support",
   "Hostel Affairs & Maintenance",
   "Campus Security & Safety Office",
-  "General Administration & Logistics"
+  "General Administration & Logistics",
+  "Others"
 ];
 
 export const STATUS_LIST = [
