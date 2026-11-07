@@ -29,6 +29,7 @@ interface AuthContextType {
   isFirebaseActive: boolean;
   login: (email: string, pass: string) => Promise<User>;
   register: (name: string, email: string, pass: string) => Promise<User>;
+  registerAdmin: (name: string, email: string, pass: string) => Promise<User>;
   loginWithGoogle: () => Promise<User>;
   resetPassword: (email: string) => Promise<void>;
   sendVerificationEmail: () => Promise<void>;
@@ -295,6 +296,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const registerAdmin = async (name: string, email: string, pass: string): Promise<User> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    if (isFirebaseActive) {
+      let fbUser;
+      try {
+        fbUser = await fbRegister(cleanName, cleanEmail, pass);
+      } catch (fbErr: any) {
+        if (fbErr?.code === 'auth/email-already-in-use') {
+          fbUser = await fbLogin(cleanEmail, pass);
+        } else {
+          throw fbErr;
+        }
+      }
+      const idToken = await fbUser.getIdToken();
+      localStorage.setItem(TOKEN_KEY, idToken);
+      setToken(idToken);
+      setFirebaseUser(fbUser);
+
+      try {
+        const data = await api.registerAdmin(cleanName, cleanEmail, pass);
+        setUser(data.user);
+        setCachedUser(data.user);
+        return data.user;
+      } catch (err) {
+        console.warn('Backend registerAdmin fallback:', err);
+        const adminUser: User = {
+          id: 1,
+          name: cleanName || fbUser.displayName || 'Administrator',
+          email: cleanEmail,
+          role: 'admin',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          firebase_uid: fbUser.uid
+        };
+        setUser(adminUser);
+        setCachedUser(adminUser);
+        return adminUser;
+      }
+    } else {
+      try {
+        const data = await api.registerAdmin(cleanName, cleanEmail, pass);
+        localStorage.setItem(TOKEN_KEY, data.access_token);
+        setToken(data.access_token);
+        setUser(data.user);
+        setCachedUser(data.user);
+        saveLocalUser(data.user, pass);
+        return data.user;
+      } catch (backendErr: any) {
+        console.warn('Backend registerAdmin unavailable, creating local admin session:', backendErr);
+        const adminUser: User = {
+          id: Date.now(),
+          name: cleanName,
+          email: cleanEmail,
+          role: 'admin',
+          is_active: true,
+          created_at: new Date().toISOString()
+        };
+        saveLocalUser(adminUser, pass);
+        const localToken = createLocalSessionToken(adminUser);
+        localStorage.setItem(TOKEN_KEY, localToken);
+        setToken(localToken);
+        setUser(adminUser);
+        setCachedUser(adminUser);
+        return adminUser;
+      }
+    }
+  };
+
   const loginWithGoogle = async (): Promise<User> => {
     if (!isFirebaseActive) {
       throw new Error('Google Sign-In requires Firebase configuration. Please configure VITE_FIREBASE_* environment variables in your deployment.');
@@ -397,6 +468,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isFirebaseActive,
         login,
         register,
+        registerAdmin,
         loginWithGoogle,
         resetPassword,
         sendVerificationEmail,

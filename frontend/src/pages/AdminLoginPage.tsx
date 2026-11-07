@@ -13,7 +13,8 @@ import {
   ArrowRight,
   Loader2,
   Building,
-  ArrowLeft
+  ArrowLeft,
+  UserPlus
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { mapFirebaseError } from '../services/firebase';
@@ -186,9 +187,22 @@ export const AdminLoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Provisioning Notice */}
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-            <span className="font-bold text-slate-700 dark:text-slate-300">Policy:</span> Self-registration as an administrator is prohibited. Privilege assignment is performed by campus IT via backend provisioning.
+          {/* Registration Option for Administrator */}
+          <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-white/5 border border-indigo-200/80 dark:border-white/10 text-center space-y-2">
+            <div className="text-xs font-bold text-[#172033] dark:text-[#F8FAFC]">
+              Don't have an Administrator Account yet?
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Register an official facility manager or supervisor profile with full administrative dashboard clearance.
+            </p>
+            <Link
+              to="/admin/register"
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-700 via-primaryViolet to-brightBlue text-white font-bold text-xs shadow-xs hover:scale-101 hover:opacity-95 transition-all"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Create Administrator Account</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
           {/* Switch to Student Portal */}

@@ -14,6 +14,7 @@ import { TrackComplaintPage } from './pages/TrackComplaintPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { AdminLoginPage } from './pages/AdminLoginPage';
+import { AdminRegisterPage } from './pages/AdminRegisterPage';
 import { UserDashboardPage } from './pages/UserDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminComplaintDetailPage } from './pages/AdminComplaintDetailPage';
@@ -163,6 +164,8 @@ const AppLayout: React.FC = () => {
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
+            <Route path="/admin/register" element={<AdminRegisterPage />} />
+            <Route path="/admin-register" element={<Navigate to="/admin/register" replace />} />
 
             {/* Mandatory Protected Application Pages */}
             <Route

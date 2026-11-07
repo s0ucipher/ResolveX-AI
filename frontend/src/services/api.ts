@@ -130,6 +130,13 @@ export const api = {
     });
   },
 
+  async registerAdmin(name: string, email: string, password: string): Promise<{ access_token: string; user: User }> {
+    return request<{ access_token: string; user: User }>('/auth/register-admin', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+    });
+  },
+
   async getMe(): Promise<User> {
     return request<User>('/auth/me');
   },

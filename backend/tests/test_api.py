@@ -388,4 +388,22 @@ def test_facility_admin_portal_access_and_lifecycle_updates():
     assert demoted_user.role == "user"
     db.close()
 
+    # 8. Test Register-Admin API endpoint
+    admin_reg_email = f"newadmin_{unique_tag}@college.edu"
+    admin_reg_res = client.post("/api/auth/register-admin", json={
+        "name": "Prof. Facility Director",
+        "email": admin_reg_email,
+        "password": "AdminPassword123!"
+    })
+    assert admin_reg_res.status_code == 201
+    admin_reg_data = admin_reg_res.json()
+    assert admin_reg_data["user"]["role"] == "admin"
+    new_admin_token = admin_reg_data["access_token"]
+
+    # Verify newly registered administrator can immediately access the Facility Admin Console
+    new_admin_check = client.get("/api/admin/complaints", headers={"Authorization": f"Bearer {new_admin_token}"})
+    assert new_admin_check.status_code == 200
+    assert "items" in new_admin_check.json()
+
+
 

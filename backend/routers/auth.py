@@ -44,6 +44,53 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         user=UserOut.model_validate(new_user)
     )
 
+@router.post("/register-admin", response_model=Token, status_code=status.HTTP_201_CREATED)
+def register_admin(user_in: UserCreate, db: Session = Depends(get_db)):
+    clean_email = user_in.email.strip().lower()
+    clean_name = user_in.name.strip()
+
+    # Check if user already exists
+    existing = db.query(User).filter(User.email == clean_email).first()
+    if existing:
+        # Upgrade or refresh existing user account to Administrator
+        existing.role = "admin"
+        if user_in.password:
+            existing.password_hash = get_password_hash(user_in.password)
+        if clean_name:
+            existing.name = clean_name
+        existing.is_active = True
+        db.commit()
+        db.refresh(existing)
+
+        access_token = create_access_token(
+            data={"sub": str(existing.id), "email": existing.email, "role": existing.role}
+        )
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            user=UserOut.model_validate(existing)
+        )
+
+    new_admin = User(
+        name=clean_name,
+        email=clean_email,
+        password_hash=get_password_hash(user_in.password),
+        role="admin",
+        is_active=True
+    )
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+
+    access_token = create_access_token(
+        data={"sub": str(new_admin.id), "email": new_admin.email, "role": new_admin.role}
+    )
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserOut.model_validate(new_admin)
+    )
+
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == credentials.email.lower()).first()
