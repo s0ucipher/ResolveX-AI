@@ -115,3 +115,4 @@ def verify_firebase_token(token: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.debug(f"Firebase token verification failed: {e}")
         return None
+

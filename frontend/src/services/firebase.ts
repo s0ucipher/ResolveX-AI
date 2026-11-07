@@ -197,3 +197,4 @@ export const getFirebaseIdToken = async (forceRefresh = false): Promise<string |
     return null;
   }
 };
+
