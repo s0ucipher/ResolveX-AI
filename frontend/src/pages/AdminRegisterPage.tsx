@@ -168,21 +168,21 @@ export const AdminRegisterPage: React.FC = () => {
 
             {/* Department */}
             <div className="space-y-1">
-              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Department / Facility Division <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">(Optional)</span>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-cyanAccent shrink-0" />
+                <span>Department / Facility Division <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">(Optional)</span></span>
               </label>
-              <div className="relative">
+              <div>
                 <select
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-indigo-600 dark:focus:border-cyan-400 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium transition-all"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-indigo-600 dark:focus:border-cyan-400 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium transition-all cursor-pointer"
                 >
                   <option value="">Select Division (or General Facilities Dean)</option>
                   {DEPARTMENTS.map((dept) => (
                     <option key={dept} value={dept} className="bg-white dark:bg-[#171F3B]">{dept}</option>
                   ))}
                 </select>
-                <Layers className="w-4 h-4 text-indigo-600 dark:text-cyanAccent absolute left-3.5 top-3" />
               </div>
             </div>
 
