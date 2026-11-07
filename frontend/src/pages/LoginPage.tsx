@@ -52,12 +52,10 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const loggedInUser = await login(email.trim(), password);
-      // Redirect to admin portal or dashboard or the requested protected page
-      if (from && from !== '/' && from !== '/login' && from !== '/register') {
+      await login(email.trim(), password);
+      // When logging in from Student Portal, always remain in the Student section
+      if (from && from !== '/' && from !== '/login' && from !== '/register' && !from.startsWith('/admin')) {
         navigate(from, { replace: true });
-      } else if (loggedInUser.role === 'admin') {
-        navigate('/admin', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
       }
@@ -74,11 +72,10 @@ export const LoginPage: React.FC = () => {
     setGoogleLoading(true);
 
     try {
-      const loggedInUser = await loginWithGoogle();
-      if (from && from !== '/' && from !== '/login' && from !== '/register') {
+      await loginWithGoogle();
+      // When logging in from Student Portal, always remain in the Student section
+      if (from && from !== '/' && from !== '/login' && from !== '/register' && !from.startsWith('/admin')) {
         navigate(from, { replace: true });
-      } else if (loggedInUser.role === 'admin') {
-        navigate('/admin', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
       }
@@ -115,10 +112,8 @@ export const LoginPage: React.FC = () => {
     setSuccessMsg(null);
     setLoading(true);
     try {
-      const loggedInUser = await loginDemo(role);
-      if (from && from !== '/' && from !== '/login' && from !== '/register') {
-        navigate(from, { replace: true });
-      } else if (loggedInUser.role === 'admin') {
+      await loginDemo(role);
+      if (role === 'admin') {
         navigate('/admin', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });

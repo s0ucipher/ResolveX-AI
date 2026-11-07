@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Send, Search, Sparkles, User, LayoutDashboard } from 'lucide-react';
+import { Home, Send, Search, Sparkles, User, LayoutDashboard, BarChart3 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useDisplayMode } from '../context/DisplayModeContext';
 
@@ -17,15 +17,17 @@ export const MobileBottomNav: React.FC = () => {
     return location.pathname.startsWith(path);
   };
 
+  const isCurrentlyInAdmin = location.pathname.startsWith('/admin');
+
   const navItems = [
     { label: 'Home', path: '/', icon: Home, highlight: false },
     { label: 'Submit', path: '/submit', icon: Send, highlight: true },
     { label: 'Track', path: '/track', icon: Search, highlight: false },
     { label: 'ML Eval', path: '/model-eval', icon: Sparkles, highlight: false },
     {
-      label: user ? (isAdmin ? 'Admin' : 'Account') : 'Sign In',
-      path: user ? (isAdmin ? '/admin' : '/dashboard') : '/login',
-      icon: user ? (isAdmin ? LayoutDashboard : User) : User,
+      label: user ? (isCurrentlyInAdmin ? 'Admin' : 'Dashboard') : 'Sign In',
+      path: user ? (isCurrentlyInAdmin ? '/admin' : '/dashboard') : '/login',
+      icon: user ? (isCurrentlyInAdmin ? BarChart3 : LayoutDashboard) : User,
       highlight: false
     },
   ];

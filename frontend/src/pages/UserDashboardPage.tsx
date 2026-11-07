@@ -7,7 +7,8 @@ import {
   Inbox,
   RefreshCw,
   AlertTriangle,
-  Loader2
+  Loader2,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useDisplayMode } from '../context/DisplayModeContext';
@@ -16,7 +17,7 @@ import { PriorityBadge } from '../components/PriorityBadge';
 import { StatusBadge } from '../components/StatusBadge';
 
 export const UserDashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { isMobileMode } = useDisplayMode();
   const { complaints, loading, error, stats, refreshComplaints } = useComplaints();
 
@@ -49,9 +50,20 @@ export const UserDashboardPage: React.FC = () => {
         isMobileMode ? 'p-4' : 'p-6 sm:p-8'
       }`}>
         <div>
-          <div className="inline-flex items-center gap-2 text-xs font-mono text-primaryViolet dark:text-darkPurple font-bold mb-1">
-            <span className="w-2 h-2 rounded-full bg-primaryViolet dark:bg-darkPurple" />
-            <span>STUDENT PERSONAL PORTAL</span>
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <div className="inline-flex items-center gap-2 text-xs font-mono text-primaryViolet dark:text-darkPurple font-bold">
+              <span className="w-2 h-2 rounded-full bg-primaryViolet dark:bg-darkPurple" />
+              <span>STUDENT PERSONAL PORTAL</span>
+            </div>
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-violet-200/80 dark:bg-violet-900/40 text-primaryViolet dark:text-cyan-300 border border-violet-300 dark:border-violet-700/60 hover:opacity-90 transition-opacity"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Switch to Facility Admin Console &rarr;</span>
+              </Link>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-[#F8FAFC]">
             Welcome, {user?.name || 'Student'}
