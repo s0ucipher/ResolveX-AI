@@ -218,11 +218,40 @@ def test_admin_status_transitions_and_override():
     assert prio_res.status_code == 200
     assert prio_res.json()["final_priority"] == "High"
 
+    # Priority verification with same priority and justification note (e.g. "Done Work")
+    same_prio_res = client.patch(
+        f"/api/admin/complaints/{public_id}/priority",
+        json={"priority": "High", "reason": "Done Work - Verified electrical safety"},
+        headers=headers
+    )
+    assert same_prio_res.status_code == 200
+    assert same_prio_res.json()["final_priority"] == "High"
+
+    # Category override to new category
+    cat_res = client.patch(
+        f"/api/admin/complaints/{public_id}/category",
+        json={"category": "Civil Infrastructure & Structural Maintenance", "reason": "Window frame masonry broken"},
+        headers=headers
+    )
+    assert cat_res.status_code == 200
+    assert cat_res.json()["category"] == "Civil Infrastructure & Structural Maintenance"
+
+    # Category verification with same category and audit note
+    same_cat_res = client.patch(
+        f"/api/admin/complaints/{public_id}/category",
+        json={"category": "Civil Infrastructure & Structural Maintenance", "reason": "Verified by chief engineer"},
+        headers=headers
+    )
+    assert same_cat_res.status_code == 200
+
     # Check history has all audited steps
     hist_res = client.get(f"/api/complaints/{public_id}/history", headers=headers)
     assert hist_res.status_code == 200
     history_list = hist_res.json()
-    assert len(history_list) >= 3
+    assert len(history_list) >= 5
+    notes = [h["note"] for h in history_list if h["note"]]
+    assert any("Done Work" in n for n in notes)
+    assert any("Civil Infrastructure" in n for n in notes)
 
 def test_analytics_endpoints():
     res = client.get("/api/analytics/summary")

@@ -186,7 +186,10 @@ export const api = {
       console.warn(`Backend unavailable for getComplaint (${publicId}), searching local repository:`, err);
       const list = getLocalComplaints();
       const found = list.find(c => c.public_id.toUpperCase() === publicId.trim().toUpperCase());
-      if (found) return found;
+      if (found) {
+        found.history = getLocalHistory(found.public_id);
+        return found;
+      }
       throw new Error(`Complaint #${publicId} was not found. Please verify the ID.`);
     }
   },
@@ -303,18 +306,21 @@ export const api = {
     } catch (err) {
       console.warn(`Backend unavailable for updateStatus (${publicId}), updating locally:`, err);
       const list = getLocalComplaints();
-      const comp = list.find(c => c.public_id === publicId);
+      const comp = list.find(c => c.public_id.toUpperCase() === publicId.trim().toUpperCase());
       if (comp) {
         const oldStatus = comp.status;
         comp.status = payload.status as Complaint['status'];
         comp.updated_at = new Date().toISOString();
+        if (payload.rejection_reason) comp.rejection_reason = payload.rejection_reason;
+        if (payload.resolution_notes) comp.resolution_notes = payload.resolution_notes;
         saveLocalComplaint(comp);
-        recordLocalHistory(publicId, {
+        recordLocalHistory(comp.public_id, {
           previous_status: oldStatus,
           new_status: payload.status,
-          note: payload.note || payload.resolution_notes || payload.rejection_reason,
+          note: payload.note || payload.resolution_notes || payload.rejection_reason || `Status transitioned to ${payload.status}`,
           changed_by: 'Administrator'
         });
+        comp.history = getLocalHistory(comp.public_id);
         return comp;
       }
       throw err;
@@ -328,12 +334,23 @@ export const api = {
         body: JSON.stringify({ category, reason }),
       });
     } catch (err) {
+      console.warn(`Backend unavailable for overrideCategory (${publicId}), updating locally:`, err);
       const list = getLocalComplaints();
-      const comp = list.find(c => c.public_id === publicId);
+      const comp = list.find(c => c.public_id.toUpperCase() === publicId.trim().toUpperCase());
       if (comp) {
+        const oldCat = comp.category;
         comp.category = category;
         comp.updated_at = new Date().toISOString();
         saveLocalComplaint(comp);
+        recordLocalHistory(comp.public_id, {
+          previous_status: comp.status,
+          new_status: comp.status,
+          note: oldCat !== category 
+            ? `Category updated from '${oldCat}' to '${category}' by Administrator.${reason ? ` Reason: ${reason}` : ''}`
+            : `Category verified as '${category}' by Administrator.${reason ? ` Note: ${reason}` : ''}`,
+          changed_by: 'Administrator'
+        });
+        comp.history = getLocalHistory(comp.public_id);
         return comp;
       }
       throw err;
@@ -347,12 +364,23 @@ export const api = {
         body: JSON.stringify({ priority, reason }),
       });
     } catch (err) {
+      console.warn(`Backend unavailable for overridePriority (${publicId}), updating locally:`, err);
       const list = getLocalComplaints();
-      const comp = list.find(c => c.public_id === publicId);
+      const comp = list.find(c => c.public_id.toUpperCase() === publicId.trim().toUpperCase());
       if (comp) {
+        const oldPrio = comp.final_priority;
         comp.final_priority = priority as Complaint['final_priority'];
         comp.updated_at = new Date().toISOString();
         saveLocalComplaint(comp);
+        recordLocalHistory(comp.public_id, {
+          previous_status: comp.status,
+          new_status: comp.status,
+          note: oldPrio !== priority
+            ? `Priority overridden from '${oldPrio}' to '${priority}' by Administrator.${reason ? ` Justification: ${reason}` : ''}`
+            : `Priority confirmed as '${priority}' by Administrator.${reason ? ` Justification: ${reason}` : ''}`,
+          changed_by: 'Administrator'
+        });
+        comp.history = getLocalHistory(comp.public_id);
         return comp;
       }
       throw err;
@@ -366,12 +394,24 @@ export const api = {
         body: JSON.stringify({ department, note }),
       });
     } catch (err) {
+      console.warn(`Backend unavailable for assignDepartment (${publicId}), updating locally:`, err);
       const list = getLocalComplaints();
-      const comp = list.find(c => c.public_id === publicId);
+      const comp = list.find(c => c.public_id.toUpperCase() === publicId.trim().toUpperCase());
       if (comp) {
+        const oldDept = comp.assigned_department || 'Unassigned';
         comp.assigned_department = department;
+        if (comp.status === 'Submitted' || comp.status === 'Under Review') {
+          comp.status = 'Assigned';
+        }
         comp.updated_at = new Date().toISOString();
         saveLocalComplaint(comp);
+        recordLocalHistory(comp.public_id, {
+          previous_status: comp.status,
+          new_status: comp.status,
+          note: `Assigned to department '${department}' (previously ${oldDept}) by Administrator.${note ? ` Note: ${note}` : ''}`,
+          changed_by: 'Administrator'
+        });
+        comp.history = getLocalHistory(comp.public_id);
         return comp;
       }
       throw err;

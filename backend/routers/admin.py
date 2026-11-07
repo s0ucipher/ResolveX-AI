@@ -104,14 +104,18 @@ def override_category(
 
     old_cat = complaint.category
     new_cat = payload.category.strip()
-    if old_cat == new_cat:
+    if old_cat == new_cat and not payload.reason:
         return ComplaintOut.model_validate(complaint)
 
     now = get_utc_now()
     complaint.category = new_cat
     complaint.updated_at = now
 
-    note_text = f"Category updated from '{old_cat}' to '{new_cat}' by Admin ({admin.name})."
+    if old_cat != new_cat:
+        note_text = f"Category updated from '{old_cat}' to '{new_cat}' by Admin ({admin.name})."
+    else:
+        note_text = f"Category review confirmed '{new_cat}' by Admin ({admin.name})."
+
     if payload.reason:
         note_text += f" Reason: {payload.reason}"
 
@@ -143,11 +147,19 @@ def override_priority(
         raise HTTPException(status_code=400, detail="Priority must be Critical, High, Medium, or Low")
 
     old_priority = complaint.final_priority
+    new_priority = payload.priority.strip()
+    if old_priority == new_priority and not payload.reason:
+        return ComplaintOut.model_validate(complaint)
+
     now = get_utc_now()
-    complaint.final_priority = payload.priority
+    complaint.final_priority = new_priority
     complaint.updated_at = now
 
-    note_text = f"Priority overridden from '{old_priority}' to '{payload.priority}' by Admin ({admin.name})."
+    if old_priority != new_priority:
+        note_text = f"Priority overridden from '{old_priority}' to '{new_priority}' by Admin ({admin.name})."
+    else:
+        note_text = f"Priority review confirmed '{new_priority}' by Admin ({admin.name})."
+
     if payload.reason:
         note_text += f" Justification: {payload.reason}"
 
