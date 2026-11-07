@@ -42,6 +42,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const TOKEN_KEY = 'complainai_token';
 const LEGACY_TOKEN_KEY = 'resolvex_token';
 
+// Authorized admin accounts allowed in client offline fallback
+const AUTHORIZED_ADMIN_EMAILS = ['admin@complainai.ai', 'admin@resolvex.ai'];
+const isEmailAdmin = (em?: string | null): boolean =>
+  Boolean(em && AUTHORIZED_ADMIN_EMAILS.includes(em.trim().toLowerCase()));
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => getCachedUser());
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -114,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: 1,
             name: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
             email: fbUser.email || '',
-            role: (fbUser.email && fbUser.email.toLowerCase().includes('admin')) ? 'admin' : 'user',
+            role: isEmailAdmin(fbUser.email) ? 'admin' : 'user',
             is_active: true,
             created_at: new Date().toISOString(),
             firebase_uid: fbUser.uid
@@ -157,7 +162,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: 1,
           name: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
           email: fbUser.email || cleanEmail,
-          role: cleanEmail.includes('admin') ? 'admin' : 'user',
+          role: isEmailAdmin(cleanEmail) ? 'admin' : 'user',
           is_active: true,
           created_at: new Date().toISOString(),
           firebase_uid: fbUser.uid
@@ -270,12 +275,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return data.user;
       } catch (backendErr: any) {
         console.warn('Backend API register unavailable, creating local campus user:', backendErr);
-        // Create resilient local student account
+        // Create resilient local student account - registration is strictly role='user'
         const localUser: User = {
           id: Date.now(),
           name: cleanName,
           email: cleanEmail,
-          role: cleanEmail.includes('admin') ? 'admin' : 'user',
+          role: 'user',
           is_active: true,
           created_at: new Date().toISOString()
         };
@@ -309,7 +314,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: 1,
         name: fbUser.displayName || 'Google User',
         email: fbUser.email || '',
-        role: (fbUser.email && fbUser.email.toLowerCase().includes('admin')) ? 'admin' : 'user',
+        role: isEmailAdmin(fbUser.email) ? 'admin' : 'user',
         is_active: true,
         created_at: new Date().toISOString(),
         firebase_uid: fbUser.uid

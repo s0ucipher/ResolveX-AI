@@ -38,7 +38,7 @@ export const Footer: React.FC = () => {
               <li><Link to="/submit" className="text-slate-600 dark:text-slate-400 hover:text-primaryViolet dark:hover:text-cyanAccent transition-colors">Submit New Complaint</Link></li>
               <li><Link to="/track" className="text-slate-600 dark:text-slate-400 hover:text-primaryViolet dark:hover:text-cyanAccent transition-colors">Track with Public ID</Link></li>
               <li><Link to="/model-eval" className="text-slate-600 dark:text-slate-400 hover:text-primaryViolet dark:hover:text-cyanAccent transition-colors">ML Confusion Matrix & Metrics</Link></li>
-              <li><Link to="/login" className="text-slate-600 dark:text-slate-400 hover:text-primaryViolet dark:hover:text-cyanAccent transition-colors">Facility Admin Portal</Link></li>
+              <li><Link to="/admin/login" className="text-slate-600 dark:text-slate-400 hover:text-primaryViolet dark:hover:text-cyanAccent transition-colors">Facility Admin Portal</Link></li>
             </ul>
           </div>
 

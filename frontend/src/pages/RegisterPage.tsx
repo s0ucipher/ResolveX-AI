@@ -270,12 +270,20 @@ export const RegisterPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Link to Login */}
-          <div className="text-center text-xs text-slate-500 dark:text-slate-400 font-medium pt-2 border-t border-slate-100 dark:border-white/10">
-            Already registered?{' '}
-            <Link to="/login" className="text-primaryViolet dark:text-cyanAccent hover:underline font-bold">
-              Sign In to Console
-            </Link>
+          {/* Link to Login & Facility Admin */}
+          <div className="space-y-1.5 text-center text-xs text-slate-500 dark:text-slate-400 font-medium pt-2 border-t border-slate-100 dark:border-white/10">
+            <div>
+              Already registered?{' '}
+              <Link to="/login" className="text-primaryViolet dark:text-cyanAccent hover:underline font-bold">
+                Sign In to Console
+              </Link>
+            </div>
+            <div className="text-[11.5px] text-slate-500 dark:text-slate-400 pt-0.5">
+              Campus Facility Staff?{' '}
+              <Link to="/admin/login" className="text-primaryViolet dark:text-cyanAccent hover:underline font-bold">
+                Facility Admin Portal →
+              </Link>
+            </div>
           </div>
         </div>
       </div>

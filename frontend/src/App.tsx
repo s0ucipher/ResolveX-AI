@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ComplaintsProvider } from './context/ComplaintsContext';
@@ -13,6 +13,7 @@ import { SubmitComplaintPage } from './pages/SubmitComplaintPage';
 import { TrackComplaintPage } from './pages/TrackComplaintPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { AdminLoginPage } from './pages/AdminLoginPage';
 import { UserDashboardPage } from './pages/UserDashboardPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminComplaintDetailPage } from './pages/AdminComplaintDetailPage';
@@ -73,17 +74,46 @@ const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children
   if (!user) {
     return (
       <Navigate
-        to="/login"
+        to="/admin/login"
         state={{
           from: location.pathname + location.search,
-          message: 'Please sign in or create an account to access ComplainAI features.'
+          message: 'Please sign in with authorized administrator credentials to access the Facility Admin Portal.'
         }}
         replace
       />
     );
   }
 
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+  if (!isAdmin) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-6">
+        <div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-[#171F3B] border border-rose-200 dark:border-rose-500/30 shadow-card-light dark:shadow-card-dark text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto border border-rose-200 dark:border-rose-500/40">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-black text-[#172033] dark:text-[#F8FAFC]">Administrative Clearance Required</h2>
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Your account (<strong className="text-slate-800 dark:text-slate-200">{user.email}</strong>) is currently signed in as a student and is not authorized to access the Facility Admin Console.
+          </p>
+          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to="/dashboard"
+              className="px-5 py-2.5 rounded-xl bg-primaryViolet text-white text-xs font-bold shadow-xs hover:bg-violet-700 transition-colors"
+            >
+              Go to Student Dashboard
+            </Link>
+            <Link
+              to="/admin/login"
+              className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 dark:hover:bg-white/20 transition-colors"
+            >
+              Switch to Admin Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 };
 
@@ -131,6 +161,8 @@ const AppLayout: React.FC = () => {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
 
             {/* Mandatory Protected Application Pages */}
             <Route

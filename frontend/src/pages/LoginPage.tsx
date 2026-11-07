@@ -358,12 +358,20 @@ export const LoginPage: React.FC = () => {
               </button>
             </form>
 
-            {/* Link to Registration */}
-            <div className="text-center text-xs text-slate-500 dark:text-slate-400 font-medium pt-2 border-t border-slate-100 dark:border-white/10">
-              Don't have an account yet?{' '}
-              <Link to="/register" className="text-primaryViolet dark:text-cyanAccent hover:underline font-bold">
-                Create Account now
-              </Link>
+            {/* Link to Registration & Admin Portal */}
+            <div className="space-y-2 text-center text-xs text-slate-500 dark:text-slate-400 font-medium pt-2 border-t border-slate-100 dark:border-white/10">
+              <div>
+                Don't have an account yet?{' '}
+                <Link to="/register" className="text-primaryViolet dark:text-cyanAccent hover:underline font-bold">
+                  Create Account now
+                </Link>
+              </div>
+              <div className="text-[11.5px] pt-1 text-slate-500 dark:text-slate-400">
+                Campus Facility Staff?{' '}
+                <Link to="/admin/login" className="text-primaryViolet dark:text-cyanAccent hover:underline font-bold">
+                  Sign in to Facility Admin Portal →
+                </Link>
+              </div>
             </div>
           </div>
         )}

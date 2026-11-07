@@ -296,3 +296,96 @@ def test_auto_category_classification_and_immediate_dashboard_listing():
     assert res_manual.status_code == 201
     assert res_manual.json()["category"] == "Hostel and accommodation"
 
+def test_facility_admin_portal_access_and_lifecycle_updates():
+    # 1. Verify student account receives 403 Forbidden on Admin endpoints
+    student_token = get_auth_token("student@complainai.ai", "Student@ComplainAI2026!")
+    student_headers = {"Authorization": f"Bearer {student_token}"}
+    student_admin_res = client.get("/api/admin/complaints", headers=student_headers)
+    assert student_admin_res.status_code == 403
+    assert "Administrative privileges required" in student_admin_res.json()["detail"]
+
+    # 2. Verify authorized administrator can access Admin complaints list
+    admin_token = get_auth_token("admin@complainai.ai", "Admin@ComplainAI2026!")
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    admin_res = client.get("/api/admin/complaints", headers=admin_headers)
+    assert admin_res.status_code == 200
+    admin_data = admin_res.json()
+    assert "items" in admin_data
+    assert admin_data["total"] > 0
+    first_item = admin_data["items"][0]
+    assert "public_id" in first_item
+    assert "category" in first_item
+    assert "final_priority" in first_item
+    assert "priority_score" in first_item
+    assert "status" in first_item
+
+    # 3. Submit a complaint as student
+    unique_tag = uuid.uuid4().hex[:6]
+    comp_res = client.post("/api/complaints", json={
+        "title": f"Flickering lights in reading hall {unique_tag}",
+        "description": "Library reading room lights are flickering rapidly and buzzing.",
+        "location": "Central Library - Reading Hall",
+        "category": "Electrical and lighting",
+        "affected_count": 50,
+        "duration_days": 1,
+        "user_email": "student@complainai.ai"
+    }, headers=student_headers)
+    assert comp_res.status_code == 201
+    public_id = comp_res.json()["public_id"]
+
+    # 4. Admin updates status to 'Under Review' and adds note
+    review_res = client.patch(
+        f"/api/admin/complaints/{public_id}/status",
+        json={"status": "Under Review", "note": "Technician dispatched to inspect ballast."},
+        headers=admin_headers
+    )
+    assert review_res.status_code == 200
+    assert review_res.json()["status"] == "Under Review"
+
+    # 5. Admin assigns department
+    assign_res = client.patch(
+        f"/api/admin/complaints/{public_id}/assign",
+        json={"department": "Electrical Maintenance Division", "note": "Assigned to Library Zone technician."},
+        headers=admin_headers
+    )
+    assert assign_res.status_code == 200
+    assert assign_res.json()["assigned_department"] == "Electrical Maintenance Division"
+
+    # 6. Verify changes are immediately reflected in student's public tracking endpoint
+    track_res = client.get(f"/api/complaints/{public_id}", headers=student_headers)
+    assert track_res.status_code == 200
+    track_data = track_res.json()
+    assert track_data["status"] == "Assigned"
+    assert track_data["assigned_department"] == "Electrical Maintenance Division"
+    # History includes the admin note
+    assert any("Technician dispatched to inspect ballast" in h["note"] for h in track_data["history"] if h["note"])
+
+    # 7. Test CLI manage_admin promote & demote programmatic functions
+    from backend.scripts.manage_admin import promote_user, demote_user
+    from backend.database import SessionLocal
+    from backend.models import User
+
+    test_email = f"staff_{unique_tag}@college.edu"
+    reg = client.post("/api/auth/register", json={
+        "name": "Test Staff Member",
+        "email": test_email,
+        "password": "Password123!"
+    })
+    assert reg.status_code == 201
+    assert reg.json()["user"]["role"] == "user"  # Public registration is strictly role='user'
+
+    # Promote using trusted backend utility
+    promote_user(test_email)
+    db = SessionLocal()
+    promoted_user = db.query(User).filter(User.email == test_email).first()
+    assert promoted_user.role == "admin"
+    db.close()
+
+    # Demote using trusted backend utility
+    demote_user(test_email)
+    db = SessionLocal()
+    demoted_user = db.query(User).filter(User.email == test_email).first()
+    assert demoted_user.role == "user"
+    db.close()
+
+
