@@ -6,12 +6,12 @@ from backend.models import Complaint, StatusHistory
 
 VALID_TRANSITIONS = {
     "Submitted": ["Under Review", "Assigned", "Rejected"],
-    "Under Review": ["Assigned", "In Progress", "Resolved", "Rejected"],
-    "Assigned": ["In Progress", "Under Review", "Resolved", "Rejected"],
+    "Under Review": ["Assigned", "Rejected"],
+    "Assigned": ["In Progress", "Under Review", "Rejected"],
     "In Progress": ["Resolved", "Under Review", "Rejected"],
     "Resolved": ["Reopened"],
     "Reopened": ["In Progress", "Under Review", "Assigned"],
-    "Rejected": ["Under Review", "Submitted"]
+    "Rejected": ["Under Review"]
 }
 
 def get_utc_now():
@@ -30,12 +30,20 @@ def transition_complaint_status(
     now = get_utc_now()
 
     if current_status == new_status:
-        if note:
+        changed = False
+        if resolution_notes and complaint.resolution_notes != resolution_notes:
+            complaint.resolution_notes = resolution_notes
+            changed = True
+        if rejection_reason and complaint.rejection_reason != rejection_reason:
+            complaint.rejection_reason = rejection_reason
+            changed = True
+        if note or changed:
+            log_note = note or (f"Resolution details updated: {resolution_notes}" if resolution_notes else "Administrative review notes updated.")
             history = StatusHistory(
                 complaint_id=complaint.id,
                 previous_status=current_status,
                 new_status=new_status,
-                note=note,
+                note=log_note,
                 changed_by=changed_by,
                 created_at=now
             )
@@ -49,7 +57,7 @@ def transition_complaint_status(
     if new_status not in allowed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid status transition from '{current_status}' to '{new_status}'. Permitted transitions: {', '.join(allowed) or 'None'}"
+            detail=f"Invalid status transition from '{current_status}' to '{new_status}'. Maintenance lifecycle must progress step-by-step: Submitted → Under Review → Assigned → In Progress → Resolved."
         )
 
     previous_status = complaint.status

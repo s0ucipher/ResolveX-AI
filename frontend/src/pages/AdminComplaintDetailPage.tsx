@@ -25,7 +25,12 @@ import {
   HelpCircle,
   Check,
   Info,
-  ChevronRight
+  ChevronRight,
+  Edit3,
+  Wrench,
+  Timer,
+  RotateCcw,
+  Tag
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useDisplayMode } from '../context/DisplayModeContext';
@@ -39,6 +44,60 @@ import {
 } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
 import { StatusBadge } from '../components/StatusBadge';
+
+const LIFECYCLE_STAGES = [
+  { step: 1, name: 'Submitted', desc: 'Lodged by Student' },
+  { step: 2, name: 'Under Review', desc: 'Triage & Verification' },
+  { step: 3, name: 'Assigned', desc: 'Division & Crew Dispatched' },
+  { step: 4, name: 'In Progress', desc: 'Active On-Site Repair' },
+  { step: 5, name: 'Resolved', desc: 'Maintenance Certified' }
+];
+
+// Helper to extract the latest administrative reviews and notes from history
+function extractLatestNotesFromHistory(history: StatusHistory[]) {
+  let dispatchNote = '';
+  let priorityJustification = '';
+  let categoryReason = '';
+  let progressNote = '';
+  let resolutionNote = '';
+
+  const sorted = [...history].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  for (const h of sorted) {
+    const text = h.note || '';
+
+    if (!priorityJustification) {
+      const match = text.match(/Justification:\s*(.+)$/i);
+      if (match) priorityJustification = match[1].trim();
+      else if (text.toLowerCase().includes('priority confirmed') || text.toLowerCase().includes('priority review')) {
+        priorityJustification = text;
+      }
+    }
+
+    if (!categoryReason) {
+      const match = text.match(/Reason:\s*(.+)$/i);
+      if (match && !text.includes('Rejection Reason:')) categoryReason = match[1].trim();
+    }
+
+    if (!dispatchNote) {
+      const match = text.match(/Assigned to department .+?\.\s*(?:Note:\s*(.+))?$/i);
+      if (match && match[1]) dispatchNote = match[1].trim();
+      else if (text.startsWith('Work order') || text.startsWith('Dispatch:')) dispatchNote = text;
+    }
+
+    if (!progressNote && h.new_status === 'In Progress') {
+      progressNote = text;
+    }
+
+    if (!resolutionNote && h.new_status === 'Resolved') {
+      resolutionNote = text;
+    }
+  }
+
+  return { dispatchNote, priorityJustification, categoryReason, progressNote, resolutionNote };
+}
 
 export const AdminComplaintDetailPage: React.FC = () => {
   const { publicId } = useParams<{ publicId: string }>();
@@ -54,20 +113,29 @@ export const AdminComplaintDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Administrative Action Inputs
-  const [newStatus, setNewStatus] = useState<string>('');
-  const [statusNote, setStatusNote] = useState<string>('');
-  const [rejectionReason, setRejectionReason] = useState<string>('');
-  const [resolutionNotes, setResolutionNotes] = useState<string>('');
-
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [categoryReason, setCategoryReason] = useState<string>('');
+  // Active / Editable administrative notes
+  const [assignedDept, setAssignedDept] = useState<string>('');
+  const [deptNote, setDeptNote] = useState<string>('');
 
   const [selectedPriority, setSelectedPriority] = useState<string>('');
   const [priorityReason, setPriorityReason] = useState<string>('');
 
-  const [assignedDept, setAssignedDept] = useState<string>('');
-  const [deptNote, setDeptNote] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [categoryReason, setCategoryReason] = useState<string>('');
+
+  // Step-by-step lifecycle transition inputs
+  const [triageInspectionNote, setTriageInspectionNote] = useState<string>('');
+  const [progressCrew, setProgressCrew] = useState<string>('');
+  const [progressDuration, setProgressDuration] = useState<string>('2 hours');
+  const [progressNote, setProgressNote] = useState<string>('');
+  const [resolutionSummary, setResolutionSummary] = useState<string>('');
+  const [resolutionParts, setResolutionParts] = useState<string>('');
+  const [resolutionSignOff, setResolutionSignOff] = useState<string>('');
+  const [reopenReason, setReopenReason] = useState<string>('');
+  const [rejectionReason, setRejectionReason] = useState<string>('');
+
+  // In-place editing toggles
+  const [editingResolution, setEditingResolution] = useState(false);
 
   const loadComplaint = async () => {
     if (!publicId) return;
@@ -80,13 +148,25 @@ export const AdminComplaintDetailPage: React.FC = () => {
         api.getDuplicates(publicId).catch(() => [])
       ]);
       setComplaint(data);
-      setNewStatus(data.status);
+      setAssignedDept(data.assigned_department || '');
       setSelectedCategory(data.category);
       setSelectedPriority(data.final_priority);
-      setAssignedDept(data.assigned_department || '');
       setDuplicates(dupList || []);
+
       const mergedHistory = histList && histList.length > 0 ? histList : (data.history || []);
       setHistory(mergedHistory);
+
+      // Extract latest notes to pre-fill inputs so user work is NEVER lost
+      const extracted = extractLatestNotesFromHistory(mergedHistory);
+      if (extracted.dispatchNote) setDeptNote(extracted.dispatchNote);
+      if (extracted.priorityJustification) setPriorityReason(extracted.priorityJustification);
+      if (extracted.categoryReason) setCategoryReason(extracted.categoryReason);
+      if (data.resolution_notes) {
+        setResolutionSummary(data.resolution_notes);
+      } else if (extracted.resolutionNote) {
+        setResolutionSummary(extracted.resolutionNote);
+      }
+      if (extracted.progressNote) setProgressNote(extracted.progressNote);
     } catch (err: any) {
       setError(err.message || 'Failed to load complaint details');
     } finally {
@@ -113,114 +193,233 @@ export const AdminComplaintDetailPage: React.FC = () => {
     }
   };
 
-  const handleStatusUpdate = async (e?: React.FormEvent, customStatus?: string) => {
-    if (e) e.preventDefault();
+  // Helper to re-query fresh history after any update
+  const syncAfterUpdate = async (updated: Complaint, msg: string) => {
+    setComplaint(updated);
+    const freshHistory = await api.getComplaintHistory(updated.public_id).catch(() => []);
+    if (freshHistory.length > 0) {
+      setHistory(freshHistory);
+    } else if (updated.history && updated.history.length > 0) {
+      setHistory(updated.history);
+    }
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 4500);
+  };
+
+  // -------------------------------------------------------------
+  // STEP 1: Submitted -> Under Review
+  // -------------------------------------------------------------
+  const handleAdvanceToUnderReview = async () => {
     if (!complaint) return;
-    const targetStatus = customStatus || newStatus;
-    if (targetStatus === 'Rejected' && !rejectionReason.trim()) {
-      setError('Please provide a rejection reason when rejecting a complaint.');
+    setActionLoading('step-under-review');
+    setError(null);
+    try {
+      const note = triageInspectionNote.trim()
+        ? `Triage Review: ${triageInspectionNote.trim()}`
+        : 'Complaint accepted for facility triage & review by Administrator.';
+      const updated = await api.updateStatus(complaint.public_id, {
+        status: 'Under Review',
+        note
+      });
+      await syncAfterUpdate(updated, "Advanced to Stage 2: 'Under Review' (Triage active).");
+      setTriageInspectionNote('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to transition to Under Review');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // STEP 2: Under Review -> Assigned (Division & Crew Dispatch)
+  // -------------------------------------------------------------
+  const handleAssignDepartment = async () => {
+    if (!complaint) return;
+    if (!assignedDept) {
+      setError('Please select a facility division / department to assign.');
       return;
     }
 
-    setActionLoading('status');
+    setActionLoading('assign');
     setError(null);
-    setSuccessMsg(null);
+    try {
+      const updated = await api.assignDepartment(
+        complaint.public_id,
+        assignedDept,
+        deptNote.trim() || undefined
+      );
+      await syncAfterUpdate(
+        updated,
+        `Division assigned: '${assignedDept}' with dispatch note saved.`
+      );
+    } catch (err: any) {
+      setError(err.message || 'Failed to assign department');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // STEP 3: Assigned -> In Progress (Commence On-Site Work)
+  // -------------------------------------------------------------
+  const handleAdvanceToInProgress = async () => {
+    if (!complaint) return;
+    setActionLoading('step-in-progress');
+    setError(null);
+    try {
+      const parts: string[] = [];
+      if (progressCrew.trim()) parts.push(`Crew on site: ${progressCrew.trim()}`);
+      if (progressDuration.trim()) parts.push(`Estimated duration: ${progressDuration.trim()}`);
+      if (progressNote.trim()) parts.push(progressNote.trim());
+      const fullNote = parts.length > 0
+        ? parts.join(' | ')
+        : 'Maintenance crew arrived on site; repair work actively commenced.';
+
+      const updated = await api.updateStatus(complaint.public_id, {
+        status: 'In Progress',
+        note: fullNote
+      });
+      await syncAfterUpdate(updated, "Advanced to Stage 4: 'In Progress' (Crew actively working on site).");
+    } catch (err: any) {
+      setError(err.message || 'Failed to transition to In Progress');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // STEP 4: In Progress -> Resolved (Complete Maintenance)
+  // -------------------------------------------------------------
+  const handleAdvanceToResolved = async () => {
+    if (!complaint) return;
+    if (!resolutionSummary.trim()) {
+      setError('Please provide a resolution summary describing the fix applied and parts verified.');
+      return;
+    }
+
+    setActionLoading('step-resolved');
+    setError(null);
+    try {
+      const noteDetails: string[] = [resolutionSummary.trim()];
+      if (resolutionParts.trim()) noteDetails.push(`Parts: ${resolutionParts.trim()}`);
+      if (resolutionSignOff.trim()) noteDetails.push(`Sign-off: ${resolutionSignOff.trim()}`);
+      const fullResolutionText = noteDetails.join(' | ');
+
+      const updated = await api.updateStatus(complaint.public_id, {
+        status: 'Resolved',
+        resolution_notes: fullResolutionText,
+        note: `Maintenance completed & resolved: ${fullResolutionText}`
+      });
+      await syncAfterUpdate(updated, "Stage 5 Finalized: Complaint successfully marked as 'Resolved'.");
+      setEditingResolution(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to mark as Resolved');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Update Resolution Note In-Place (when already Resolved)
+  // -------------------------------------------------------------
+  const handleUpdateResolutionNote = async () => {
+    if (!complaint) return;
+    if (!resolutionSummary.trim()) {
+      setError('Resolution notes cannot be empty.');
+      return;
+    }
+    setActionLoading('edit-resolution');
+    setError(null);
     try {
       const updated = await api.updateStatus(complaint.public_id, {
-        status: targetStatus,
-        note: statusNote.trim() || undefined,
-        rejection_reason: rejectionReason.trim() || undefined,
-        resolution_notes: resolutionNotes.trim() || undefined
+        status: 'Resolved',
+        resolution_notes: resolutionSummary.trim(),
+        note: `Resolution summary updated: ${resolutionSummary.trim()}`
       });
-      setComplaint(updated);
-      setNewStatus(updated.status);
-      setStatusNote('');
-      setRejectionReason('');
-      setResolutionNotes('');
-
-      const freshHistory = await api.getComplaintHistory(complaint.public_id).catch(() => []);
-      if (freshHistory.length > 0) {
-        setHistory(freshHistory);
-      } else if (updated.history && updated.history.length > 0) {
-        setHistory(updated.history);
-      }
-
-      setSuccessMsg(`Status successfully transitioned to '${targetStatus}'.`);
-      setTimeout(() => setSuccessMsg(null), 4000);
+      await syncAfterUpdate(updated, 'Resolution summary successfully updated.');
+      setEditingResolution(false);
     } catch (err: any) {
-      setError(err.message || 'Status transition rejected by server state machine.');
+      setError(err.message || 'Failed to update resolution summary');
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleCategoryOverride = async () => {
+  // -------------------------------------------------------------
+  // Reopen Ticket
+  // -------------------------------------------------------------
+  const handleReopenComplaint = async () => {
     if (!complaint) return;
-    const isSameCategory = selectedCategory === complaint.category;
-    if (isSameCategory && !categoryReason.trim()) {
-      setError(`Current category is already '${complaint.category}'. To reclassify, select a different category from the dropdown, or enter an audit note to record category verification.`);
+    if (!reopenReason.trim()) {
+      setError('Please specify why this complaint is being reopened.');
       return;
     }
-
-    setActionLoading('category');
+    setActionLoading('reopen');
     setError(null);
-    setSuccessMsg(null);
     try {
-      const updated = await api.overrideCategory(complaint.public_id, selectedCategory, categoryReason.trim() || undefined);
-      setComplaint(updated);
-      setSelectedCategory(updated.category);
-      setCategoryReason('');
-
-      const freshHistory = await api.getComplaintHistory(complaint.public_id).catch(() => []);
-      if (freshHistory.length > 0) {
-        setHistory(freshHistory);
-      } else if (updated.history && updated.history.length > 0) {
-        setHistory(updated.history);
-      }
-
-      setSuccessMsg(
-        isSameCategory
-          ? `Category verification note successfully committed to the immutable audit trail.`
-          : `Category successfully updated from '${complaint.category}' to '${selectedCategory}'.`
-      );
-      setTimeout(() => setSuccessMsg(null), 4000);
+      const updated = await api.updateStatus(complaint.public_id, {
+        status: 'Reopened',
+        note: `Ticket reopened by Administrator. Reason: ${reopenReason.trim()}`
+      });
+      await syncAfterUpdate(updated, "Complaint reopened for inspection.");
+      setReopenReason('');
     } catch (err: any) {
-      setError(err.message || 'Failed to update category');
+      setError(err.message || 'Failed to reopen complaint');
     } finally {
       setActionLoading(null);
     }
   };
 
+  // -------------------------------------------------------------
+  // Reject Complaint
+  // -------------------------------------------------------------
+  const handleRejectComplaint = async () => {
+    if (!complaint) return;
+    if (!rejectionReason.trim()) {
+      setError('Please enter a rejection reason.');
+      return;
+    }
+    setActionLoading('reject');
+    setError(null);
+    try {
+      const updated = await api.updateStatus(complaint.public_id, {
+        status: 'Rejected',
+        rejection_reason: rejectionReason.trim(),
+        note: `Complaint rejected: ${rejectionReason.trim()}`
+      });
+      await syncAfterUpdate(updated, "Complaint marked as 'Rejected'.");
+    } catch (err: any) {
+      setError(err.message || 'Failed to reject complaint');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // Human Priority Override / Update Note
+  // -------------------------------------------------------------
   const handlePriorityOverride = async () => {
     if (!complaint) return;
-    const isSamePriority = selectedPriority === complaint.final_priority;
-    if (isSamePriority && !priorityReason.trim()) {
-      setError(`Current priority is already '${complaint.final_priority}'. To override, select a different priority level or enter a justification note to record an administrative review note.`);
+    const isSame = selectedPriority === complaint.final_priority;
+    if (isSame && !priorityReason.trim()) {
+      setError('To update priority, choose a different level from the dropdown or enter an audit note to record.');
       return;
     }
 
     setActionLoading('priority');
     setError(null);
-    setSuccessMsg(null);
     try {
-      const updated = await api.overridePriority(complaint.public_id, selectedPriority, priorityReason.trim() || undefined);
-      setComplaint(updated);
-      setSelectedPriority(updated.final_priority);
-      setPriorityReason('');
-
-      const freshHistory = await api.getComplaintHistory(complaint.public_id).catch(() => []);
-      if (freshHistory.length > 0) {
-        setHistory(freshHistory);
-      } else if (updated.history && updated.history.length > 0) {
-        setHistory(updated.history);
-      }
-
-      setSuccessMsg(
-        isSamePriority
-          ? `Priority review note successfully committed to the immutable audit trail.`
-          : `Priority successfully overridden from '${complaint.final_priority}' to '${selectedPriority}'.`
+      const updated = await api.overridePriority(
+        complaint.public_id,
+        selectedPriority,
+        priorityReason.trim() || undefined
       );
-      setTimeout(() => setSuccessMsg(null), 4000);
+      await syncAfterUpdate(
+        updated,
+        isSame
+          ? 'Priority review note successfully committed to the audit trail.'
+          : `Priority overridden from '${complaint.final_priority}' to '${selectedPriority}'.`
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to update priority');
     } finally {
@@ -228,34 +427,33 @@ export const AdminComplaintDetailPage: React.FC = () => {
     }
   };
 
-  const handleAssignDepartment = async () => {
+  // -------------------------------------------------------------
+  // Correct AI Category / Update Note
+  // -------------------------------------------------------------
+  const handleCategoryOverride = async () => {
     if (!complaint) return;
-    if (!assignedDept) {
-      setError('Please choose a department / division from the dropdown to assign.');
+    const isSame = selectedCategory === complaint.category;
+    if (isSame && !categoryReason.trim()) {
+      setError('To reclassify, select a different category or enter a verification note to record.');
       return;
     }
 
-    setActionLoading('assign');
+    setActionLoading('category');
     setError(null);
-    setSuccessMsg(null);
     try {
-      const updated = await api.assignDepartment(complaint.public_id, assignedDept, deptNote.trim() || undefined);
-      setComplaint(updated);
-      setAssignedDept(updated.assigned_department || assignedDept);
-      setNewStatus(updated.status);
-      setDeptNote('');
-
-      const freshHistory = await api.getComplaintHistory(complaint.public_id).catch(() => []);
-      if (freshHistory.length > 0) {
-        setHistory(freshHistory);
-      } else if (updated.history && updated.history.length > 0) {
-        setHistory(updated.history);
-      }
-
-      setSuccessMsg(`Complaint assigned to department '${assignedDept}'.`);
-      setTimeout(() => setSuccessMsg(null), 4000);
+      const updated = await api.overrideCategory(
+        complaint.public_id,
+        selectedCategory,
+        categoryReason.trim() || undefined
+      );
+      await syncAfterUpdate(
+        updated,
+        isSame
+          ? 'Category verification note successfully committed to the audit trail.'
+          : `Category reclassified from '${complaint.category}' to '${selectedCategory}'.`
+      );
     } catch (err: any) {
-      setError(err.message || 'Failed to assign department');
+      setError(err.message || 'Failed to update category');
     } finally {
       setActionLoading(null);
     }
@@ -298,7 +496,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
       id: 1,
       complaint_id: complaint.id,
       previous_status: null,
-      new_status: 'Submitted',
+      new_status: complaint.status || 'Submitted',
       note: `Complaint lodged via student interface. AI classified as '${complaint.predicted_category}', priority calculated as '${complaint.final_priority}'.`,
       changed_by: complaint.user_email || 'Student Author',
       created_at: complaint.created_at
@@ -309,27 +507,27 @@ export const AdminComplaintDetailPage: React.FC = () => {
   const isPriorityUnchanged = selectedPriority === complaint.final_priority;
   const isCategoryUnchanged = selectedCategory === complaint.category;
 
-  // Next recommended quick status transitions
-  const getQuickTransitions = (currentStatus: string) => {
-    switch (currentStatus) {
+  // Determine current lifecycle step index (1-based)
+  const currentStepIndex = (() => {
+    switch (complaint.status) {
       case 'Submitted':
-        return ['Under Review', 'Assigned', 'Rejected'];
+        return 1;
       case 'Under Review':
-        return ['Assigned', 'In Progress', 'Resolved', 'Rejected'];
+        return 2;
       case 'Assigned':
-        return ['In Progress', 'Resolved', 'Rejected'];
+        return 3;
       case 'In Progress':
-        return ['Resolved', 'Under Review', 'Rejected'];
+        return 4;
       case 'Resolved':
-        return ['Reopened'];
+        return 5;
+      case 'Reopened':
+        return 4;
       case 'Rejected':
-        return ['Under Review'];
+        return 0;
       default:
-        return ['Under Review', 'Resolved'];
+        return 1;
     }
-  };
-
-  const quickTransitions = getQuickTransitions(complaint.status);
+  })();
 
   return (
     <div className={isMobileMode ? 'w-full px-3.5 py-4 space-y-5' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6'}>
@@ -382,12 +580,64 @@ export const AdminComplaintDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Grid: Details & AI Evidence (8 cols) vs Admin Action Cards (4 cols) */}
+      {/* STEP-BY-STEP PROGRESSION STEPPER BANNER */}
+      <div className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-4 sm:p-6 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-primaryViolet dark:bg-darkCyan animate-pulse" />
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Audited 5-Stage Maintenance Lifecycle
+            </h3>
+          </div>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            Strict Step-by-Step Resolution Process Enforced
+          </span>
+        </div>
+
+        {complaint.status === 'Rejected' ? (
+          <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-3 font-medium">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>Complaint is currently <strong>Rejected</strong>. Reason: {complaint.rejection_reason || 'Out of jurisdiction'}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 pt-1">
+            {LIFECYCLE_STAGES.map((st) => {
+              const isPast = currentStepIndex > st.step;
+              const isCurrent = currentStepIndex === st.step;
+              return (
+                <div
+                  key={st.step}
+                  className={`p-3 rounded-2xl border text-center transition-all ${
+                    isPast
+                      ? 'bg-emerald-50 dark:bg-mintGreen/15 border-emerald-200 dark:border-mintGreen/40 text-emerald-800 dark:text-mintGreen'
+                      : isCurrent
+                      ? 'bg-gradient-to-r from-primaryViolet to-brightBlue border-transparent text-white font-black shadow-glossy-light dark:shadow-neon-violet/30'
+                      : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 font-medium'
+                  }`}
+                >
+                  <div className="text-[10px] uppercase font-bold tracking-wider mb-0.5 opacity-80">
+                    Stage {st.step}
+                  </div>
+                  <div className="text-xs font-bold truncate">{st.name}</div>
+                  <div className="mt-1 flex justify-center">
+                    {isPast && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-mintGreen" />}
+                    {isCurrent && <span className="w-2 h-2 rounded-full bg-white animate-ping" />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Main Grid: Details (8 cols) vs Admin Action Controls (4 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (8 cols): Details & AI Evidence */}
+        {/* Left Column (8 cols): Details & AI Evidence & First Section Active Summary */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Main Info Card */}
-          <div className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 sm:p-7 space-y-4 backdrop-blur-xl">
+          {/* Main Info Card with Prominent First Section Active Summary */}
+          <div className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 sm:p-7 space-y-5 backdrop-blur-xl">
             <div className="flex items-start justify-between gap-4">
               <h1 className="text-xl sm:text-2xl font-black text-[#172033] dark:text-[#F8FAFC] leading-snug">
                 {complaint.title}
@@ -421,6 +671,87 @@ export const AdminComplaintDetailPage: React.FC = () => {
               </h3>
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200/80 dark:border-white/5 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-sans shadow-2xs">
                 {complaint.description}
+              </div>
+            </div>
+
+            {/* FIRST SECTION ACTIVE ADMINISTRATIVE TRIAGE & EXECUTION RECORD */}
+            <div className="p-5 rounded-2xl bg-[#EEF5FF] dark:bg-[#0F1530] border border-blue-200/80 dark:border-white/10 space-y-3.5 shadow-2xs">
+              <div className="flex items-center justify-between border-b border-blue-200/60 dark:border-white/10 pb-2.5">
+                <div className="flex items-center gap-2 text-[#172033] dark:text-[#F8FAFC] font-black text-xs sm:text-sm">
+                  <ShieldCheck className="w-4 h-4 text-brightBlue dark:text-darkCyan" />
+                  <span>Active Administrative Triage & Execution Record</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 dark:bg-white/10 text-brightBlue dark:text-darkCyan font-bold">
+                  Authoritative Record
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {/* 1. Division & Dispatch */}
+                <div className="p-3.5 rounded-xl bg-white dark:bg-[#171F3B] border border-slate-200 dark:border-white/10 shadow-2xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Assigned Division & Dispatch
+                    </span>
+                    <Building className="w-3 h-3 text-brightBlue dark:text-darkCyan" />
+                  </div>
+                  <div className="font-bold text-[#172033] dark:text-[#F8FAFC]">
+                    {complaint.assigned_department || 'Triage in progress / Unassigned'}
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 italic">
+                    {deptNote ? `Note: "${deptNote}"` : 'No dispatch note recorded yet.'}
+                  </div>
+                </div>
+
+                {/* 2. Priority & Justification */}
+                <div className="p-3.5 rounded-xl bg-white dark:bg-[#171F3B] border border-slate-200 dark:border-white/10 shadow-2xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Assigned Priority Level
+                    </span>
+                    <PriorityBadge priority={complaint.final_priority} size="sm" />
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 italic pt-1">
+                    {priorityReason ? `Justification: "${priorityReason}"` : 'AI model rubric default.'}
+                  </div>
+                </div>
+
+                {/* 3. Category & Correction Reason */}
+                <div className="p-3.5 rounded-xl bg-white dark:bg-[#171F3B] border border-slate-200 dark:border-white/10 shadow-2xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Active Category
+                    </span>
+                    <Tag className="w-3 h-3 text-primaryViolet dark:text-darkCyan" />
+                  </div>
+                  <div className="font-bold text-[#172033] dark:text-[#F8FAFC]">
+                    {complaint.category}
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 italic">
+                    {categoryReason ? `Reason: "${categoryReason}"` : 'Initial NLP classification accepted.'}
+                  </div>
+                </div>
+
+                {/* 4. Current Resolution Summary */}
+                <div className="p-3.5 rounded-xl bg-white dark:bg-[#171F3B] border border-slate-200 dark:border-white/10 shadow-2xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Resolution Status
+                    </span>
+                    <StatusBadge status={complaint.status} size="sm" />
+                  </div>
+                  <div className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                    {complaint.resolution_notes ? (
+                      <span className="text-emerald-700 dark:text-mintGreen font-semibold">
+                        Summary: {complaint.resolution_notes}
+                      </span>
+                    ) : complaint.status === 'Resolved' ? (
+                      'Resolved and certified.'
+                    ) : (
+                      `Stage ${currentStepIndex} of 5: Active maintenance triage.`
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -571,121 +902,334 @@ export const AdminComplaintDetailPage: React.FC = () => {
 
         {/* Right Column (4 cols): Administrative Actions */}
         <div className="lg:col-span-4 space-y-5">
-          {/* Quick Stage Transitions & Status Form */}
-          <form
-            onSubmit={(e) => handleStatusUpdate(e)}
-            className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 space-y-4"
-          >
+          {/* 1. STEP-BY-STEP LIFECYCLE PROGRESSION CONTROLLER */}
+          <div className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-3">
               <div className="flex items-center gap-2 text-[#172033] dark:text-[#F8FAFC] font-black text-sm">
                 <CheckCircle2 className="w-4 h-4 text-primaryViolet dark:text-darkPurple" />
-                <span>Transition Status</span>
+                <span>Lifecycle Progression</span>
               </div>
               <StatusBadge status={complaint.status} size="sm" />
             </div>
 
-            {/* Quick action buttons */}
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Quick Action Shortcuts
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {quickTransitions.map((st) => (
+            {/* STAGE 1: SUBMITTED */}
+            {complaint.status === 'Submitted' && (
+              <div className="space-y-3.5 animate-in fade-in">
+                <div className="p-3 rounded-xl bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                  <div className="font-bold text-primaryViolet dark:text-darkCyan flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5" />
+                    <span>Stage 1 of 5: Complaint Lodged</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Student has submitted this complaint. You cannot jump directly to Resolved. First accept the complaint for triage and review.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Triage Inspection Remarks (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={triageInspectionNote}
+                    onChange={(e) => setTriageInspectionNote(e.target.value)}
+                    placeholder="e.g. Physical inspection conducted; verified critical electrical danger."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] focus:outline-none focus:border-primaryViolet font-medium"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAdvanceToUnderReview}
+                  disabled={isSaving}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-primaryViolet to-brightBlue hover:opacity-95 text-white font-bold text-xs shadow-glossy-light dark:shadow-neon-violet/30 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  <span>
+                    {actionLoading === 'step-under-review' ? 'Advancing...' : 'Advance to Stage 2: Begin Triage & Review →'}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* STAGE 2: UNDER REVIEW */}
+            {complaint.status === 'Under Review' && (
+              <div className="space-y-3.5 animate-in fade-in">
+                <div className="p-3 rounded-xl bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                  <div className="font-bold text-primaryViolet dark:text-darkCyan flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5" />
+                    <span>Stage 2 of 5: Triage Active</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Review and verify the priority/category below. Next, select a facility division in the Assign Division card to dispatch a work crew.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAssignDepartment}
+                  disabled={isSaving || !assignedDept}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-primaryViolet to-brightBlue hover:opacity-95 text-white font-bold text-xs shadow-glossy-light dark:shadow-neon-violet/30 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  <span>
+                    {actionLoading === 'assign'
+                      ? 'Dispatching...'
+                      : assignedDept
+                      ? `Advance to Stage 3: Assign to ${assignedDept} →`
+                      : 'Select Division Below to Advance to Stage 3'}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* STAGE 3: ASSIGNED */}
+            {complaint.status === 'Assigned' && (
+              <div className="space-y-3.5 animate-in fade-in">
+                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                  <div className="font-bold text-brightBlue dark:text-darkCyan flex items-center gap-1.5">
+                    <Building className="w-3.5 h-3.5" />
+                    <span>Stage 3 of 5: Assigned to {complaint.assigned_department}</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Maintenance division is dispatched. Once technicians arrive on site, log crew details and advance to In Progress.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Lead Technician / Crew on Site
+                  </label>
+                  <input
+                    type="text"
+                    value={progressCrew}
+                    onChange={(e) => setProgressCrew(e.target.value)}
+                    placeholder="e.g. Lead Electrician Ramesh & assistant"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:outline-none focus:border-brightBlue"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Estimated Duration of Work
+                  </label>
+                  <input
+                    type="text"
+                    value={progressDuration}
+                    onChange={(e) => setProgressDuration(e.target.value)}
+                    placeholder="e.g. 2 hours, 1 day, 45 minutes"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:outline-none focus:border-brightBlue"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    On-Site Work Start Note
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={progressNote}
+                    onChange={(e) => setProgressNote(e.target.value)}
+                    placeholder="e.g. Power isolated at breaker switch #4; crew has begun replacing damaged cables."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:outline-none focus:border-brightBlue"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAdvanceToInProgress}
+                  disabled={isSaving}
+                  className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs shadow-xs disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  <span>
+                    {actionLoading === 'step-in-progress' ? 'Advancing...' : 'Advance to Stage 4: Mark Work In Progress →'}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* STAGE 4: IN PROGRESS */}
+            {complaint.status === 'In Progress' && (
+              <div className="space-y-3.5 animate-in fade-in">
+                <div className="p-3 rounded-xl bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/40 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                  <div className="font-bold text-cyan-700 dark:text-darkCyan flex items-center gap-1.5">
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Stage 4 of 5: Active Repair in Progress</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    Repair work is ongoing. Once technicians finish, parts are verified, and safety is certified, fill in resolution details to complete.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-darkMint">
+                    Resolution Summary <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={resolutionSummary}
+                    onChange={(e) => setResolutionSummary(e.target.value)}
+                    placeholder="e.g. Motherboard changed and fixed. Live wiring reinsulated, breaker tested."
+                    className="w-full px-3 py-2 rounded-xl bg-emerald-50/70 dark:bg-mintGreen/15 border border-emerald-200 dark:border-mintGreen/40 text-xs text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Parts Replaced / Work Specifics (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={resolutionParts}
+                    onChange={(e) => setResolutionParts(e.target.value)}
+                    placeholder="e.g. Main motherboard replaced, 4mm heat-resistant cable installed"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Technician Sign-Off / Verifier (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={resolutionSignOff}
+                    onChange={(e) => setResolutionSignOff(e.target.value)}
+                    placeholder="e.g. Certified by Senior Electrical Supervisor"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAdvanceToResolved}
+                  disabled={isSaving || !resolutionSummary.trim()}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>
+                    {actionLoading === 'step-resolved' ? 'Resolving...' : 'Complete Stage 5: Mark Resolved ✓'}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* STAGE 5: RESOLVED */}
+            {complaint.status === 'Resolved' && (
+              <div className="space-y-3.5 animate-in fade-in">
+                <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-mintGreen/15 border border-emerald-200 dark:border-mintGreen/40 text-emerald-800 dark:text-mintGreen text-xs space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-sm">
+                    <CheckCheck className="w-4 h-4 text-emerald-600 dark:text-mintGreen" />
+                    <span>Stage 5 Certified: Complaint Resolved</span>
+                  </div>
+                  <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                    This ticket has completed all 5 stages of the resolution pipeline. Student has been notified in their tracking portal.
+                  </p>
+                  {complaint.resolved_at && (
+                    <div className="text-[10px] text-emerald-700 dark:text-darkMint font-mono font-bold">
+                      Completed: {new Date(complaint.resolved_at).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+
+                {/* EDIT RESOLUTION SUMMARY */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Recorded Resolution Summary
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEditingResolution(!editingResolution)}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-primaryViolet dark:text-darkCyan hover:underline"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                      <span>{editingResolution ? 'Cancel Edit' : 'Edit Resolution Note'}</span>
+                    </button>
+                  </div>
+
+                  {editingResolution ? (
+                    <div className="space-y-2 animate-in fade-in">
+                      <textarea
+                        rows={3}
+                        value={resolutionSummary}
+                        onChange={(e) => setResolutionSummary(e.target.value)}
+                        placeholder="Update resolution summary..."
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#0F1530] border border-slate-300 dark:border-white/20 text-xs text-slate-900 dark:text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleUpdateResolutionNote}
+                        disabled={isSaving || !resolutionSummary.trim()}
+                        className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>{actionLoading === 'edit-resolution' ? 'Saving...' : 'Save Updated Resolution Note'}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-slate-800 dark:text-slate-200 font-medium">
+                      {resolutionSummary || complaint.resolution_notes || 'Motherboard Changed and Fixed'}
+                    </div>
+                  )}
+                </div>
+
+                {/* OPTIONAL REOPEN */}
+                <div className="pt-2 border-t border-slate-100 dark:border-white/10 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    Need to Reopen Ticket? (If problem recurred)
+                  </div>
+                  <input
+                    type="text"
+                    value={reopenReason}
+                    onChange={(e) => setReopenReason(e.target.value)}
+                    placeholder="Reason for reopening (e.g. Sparks recurred after 2 days)"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium"
+                  />
                   <button
-                    key={st}
                     type="button"
-                    onClick={() => {
-                      setNewStatus(st);
-                      if (st !== 'Rejected') {
-                        handleStatusUpdate(undefined, st);
-                      }
-                    }}
-                    disabled={isSaving}
-                    className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition-all ${
-                      newStatus === st
-                        ? 'bg-primaryViolet text-white border-primaryViolet shadow-xs'
-                        : 'bg-slate-50 dark:bg-[#0F1530] hover:bg-slate-100 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/10'
-                    }`}
+                    onClick={handleReopenComplaint}
+                    disabled={isSaving || !reopenReason.trim()}
+                    className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    → {st}
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{actionLoading === 'reopen' ? 'Reopening...' : 'Reopen Complaint'}</span>
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Custom target status */}
-            <div className="space-y-1.5 pt-1">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Target Status
-              </label>
-              <select
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-bold focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-primaryViolet"
-              >
-                {STATUS_LIST.map((s) => (
-                  <option key={s} value={s} className="bg-white dark:bg-[#171F3B]">
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Audit Progress Note (Optional)
-              </label>
-              <textarea
-                rows={2}
-                value={statusNote}
-                onChange={(e) => setStatusNote(e.target.value)}
-                placeholder="e.g. Electrician team on-site inspecting the breaker box..."
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] placeholder:text-slate-400 dark:placeholder:text-slate-500 font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-primaryViolet"
-              />
-            </div>
-
-            {newStatus === 'Rejected' && (
-              <div className="space-y-1.5 animate-in fade-in">
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-rose-700 dark:text-darkCoral">
-                  Rejection Reason <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Explain why this complaint was rejected..."
-                  className="w-full px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-xs text-rose-800 dark:text-rose-200 font-medium focus:outline-none focus:border-rose-500"
-                />
+                </div>
               </div>
             )}
 
-            {newStatus === 'Resolved' && (
-              <div className="space-y-1.5 animate-in fade-in">
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-darkMint">
-                  Resolution Notes
-                </label>
-                <textarea
-                  rows={2}
-                  value={resolutionNotes}
-                  onChange={(e) => setResolutionNotes(e.target.value)}
-                  placeholder="Details of fix applied, parts replaced, technician sign-off..."
-                  className="w-full px-3 py-2 rounded-xl bg-emerald-50 dark:bg-mintGreen/20 border border-emerald-200 dark:border-mintGreen/40 text-xs text-emerald-800 dark:text-mintGreen font-medium focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+            {/* REJECTION OPTION (only available when not resolved) */}
+            {complaint.status !== 'Resolved' && complaint.status !== 'Rejected' && (
+              <details className="text-xs pt-1 border-t border-slate-100 dark:border-white/10 group">
+                <summary className="font-bold text-rose-600 dark:text-darkCoral cursor-pointer hover:underline py-1">
+                  Need to Reject this complaint?
+                </summary>
+                <div className="space-y-2 pt-2 animate-in fade-in">
+                  <textarea
+                    rows={2}
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Enter reason for rejection (e.g. Duplicate ticket, off-campus issue)..."
+                    className="w-full px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-500/40 text-xs text-rose-800 dark:text-rose-200 font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRejectComplaint}
+                    disabled={isSaving || !rejectionReason.trim()}
+                    className="w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>{actionLoading === 'reject' ? 'Rejecting...' : 'Confirm Rejection'}</span>
+                  </button>
+                </div>
+              </details>
             )}
+          </div>
 
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-primaryViolet to-brightBlue text-white font-bold text-xs shadow-glossy-light dark:shadow-neon-violet/30 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 hover:opacity-95 cursor-pointer"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{actionLoading === 'status' ? 'Committing...' : 'Commit Status Update'}</span>
-            </button>
-          </form>
-
-          {/* Department Assignment */}
+          {/* 2. ASSIGN RESPONSIBLE DIVISION & EDIT DISPATCH NOTE */}
           <div className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-3">
               <div className="flex items-center gap-2 text-[#172033] dark:text-[#F8FAFC] font-black text-sm">
@@ -696,6 +1240,14 @@ export const AdminComplaintDetailPage: React.FC = () => {
                 {complaint.assigned_department ? 'Assigned' : 'Unassigned'}
               </span>
             </div>
+
+            {/* Current Recorded Value Display */}
+            {deptNote && (
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-[11px] text-slate-700 dark:text-slate-300">
+                <span className="font-bold text-[#172033] dark:text-[#F8FAFC]">Current Dispatch Note: </span>
+                <span className="italic">"{deptNote}"</span>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
@@ -717,7 +1269,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Dispatch Note (Optional)
+                Dispatch Note / Work Order / Assigned Technician
               </label>
               <input
                 type="text"
@@ -737,15 +1289,15 @@ export const AdminComplaintDetailPage: React.FC = () => {
               <Building className="w-3.5 h-3.5" />
               <span>
                 {actionLoading === 'assign'
-                  ? 'Assigning Division...'
-                  : assignedDept
-                  ? `Assign & Update Division`
-                  : 'Select Department to Assign'}
+                  ? 'Updating Division...'
+                  : complaint.assigned_department
+                  ? `Update Division & Dispatch Note`
+                  : `Assign & Update Division`}
               </span>
             </button>
           </div>
 
-          {/* Override Priority */}
+          {/* 3. HUMAN PRIORITY OVERRIDE & EDIT JUSTIFICATION NOTE */}
           <div className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-3">
               <div className="flex items-center gap-2 text-[#172033] dark:text-[#F8FAFC] font-black text-sm">
@@ -754,6 +1306,14 @@ export const AdminComplaintDetailPage: React.FC = () => {
               </div>
               <PriorityBadge priority={complaint.final_priority} size="sm" />
             </div>
+
+            {/* Current Recorded Value Display */}
+            {priorityReason && (
+              <div className="p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 text-[11px] text-slate-700 dark:text-slate-300">
+                <span className="font-bold text-amber-800 dark:text-amber-400">Current Justification Note: </span>
+                <span className="italic">"{priorityReason}"</span>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -778,32 +1338,15 @@ export const AdminComplaintDetailPage: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Justification Reason {isPriorityUnchanged && <span className="text-amber-500">(Required to log review note)</span>}
+                Justification / Review Reason
               </label>
               <input
                 type="text"
                 value={priorityReason}
                 onChange={(e) => setPriorityReason(e.target.value)}
-                placeholder={isPriorityUnchanged ? "e.g. Done work, verified priority level" : "e.g. Exam ongoing in this room"}
+                placeholder="e.g. Done work, verified priority level"
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-amber-500"
               />
-            </div>
-
-            {/* Helper status text */}
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              {!isPriorityUnchanged ? (
-                <span className="text-amber-600 dark:text-amber-400 font-bold">
-                  Overriding from '{complaint.final_priority}' → '{selectedPriority}'
-                </span>
-              ) : priorityReason.trim() ? (
-                <span className="text-slate-600 dark:text-slate-300">
-                  Will record priority confirmation remark into the audit trail.
-                </span>
-              ) : (
-                <span>
-                  Select another priority level or type a reason to commit an audit note.
-                </span>
-              )}
             </div>
 
             <button
@@ -815,17 +1358,17 @@ export const AdminComplaintDetailPage: React.FC = () => {
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>
                 {actionLoading === 'priority'
-                  ? 'Committing Priority...'
+                  ? 'Committing...'
                   : !isPriorityUnchanged
                   ? `Commit Priority Override (${complaint.final_priority} → ${selectedPriority})`
                   : priorityReason.trim()
-                  ? 'Log Priority Review Note'
+                  ? 'Update Priority Review Note'
                   : 'Commit Priority Override'}
               </span>
             </button>
           </div>
 
-          {/* Correct AI Category */}
+          {/* 4. CORRECT AI CATEGORY & EDIT VERIFICATION REASON */}
           <div className="bg-white dark:bg-[#171F3B] rounded-3xl border border-slate-200/90 dark:border-white/10 shadow-card-light dark:shadow-card-dark p-6 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/10 pb-3">
               <div className="flex items-center gap-2 text-[#172033] dark:text-[#F8FAFC] font-black text-sm">
@@ -836,6 +1379,14 @@ export const AdminComplaintDetailPage: React.FC = () => {
                 {complaint.category}
               </span>
             </div>
+
+            {/* Current Recorded Value Display */}
+            {categoryReason && (
+              <div className="p-2.5 rounded-xl bg-violet-50/70 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800/30 text-[11px] text-slate-700 dark:text-slate-300">
+                <span className="font-bold text-primaryViolet dark:text-darkCyan">Current Category Reason: </span>
+                <span className="italic">"{categoryReason}"</span>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -861,32 +1412,15 @@ export const AdminComplaintDetailPage: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Correction Reason {isCategoryUnchanged && <span className="text-primaryViolet dark:text-darkPurple">(Required to log verification)</span>}
+                Correction / Verification Reason
               </label>
               <input
                 type="text"
                 value={categoryReason}
                 onChange={(e) => setCategoryReason(e.target.value)}
-                placeholder={isCategoryUnchanged ? "e.g. Verified correct category" : "e.g. Water leak from AC unit, not external pipe"}
+                placeholder="e.g. Verified correct category or Water leak from AC unit"
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-primaryViolet"
               />
-            </div>
-
-            {/* Helper status text */}
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              {!isCategoryUnchanged ? (
-                <span className="text-primaryViolet dark:text-darkPurple font-bold">
-                  Reclassifying from '{complaint.category}' → '{selectedCategory}'
-                </span>
-              ) : categoryReason.trim() ? (
-                <span className="text-slate-600 dark:text-slate-300">
-                  Will record category verification note into the audit trail.
-                </span>
-              ) : (
-                <span>
-                  Select another category or type a reason to commit an audit note.
-                </span>
-              )}
             </div>
 
             <button
@@ -898,11 +1432,11 @@ export const AdminComplaintDetailPage: React.FC = () => {
               <Sparkles className="w-3.5 h-3.5" />
               <span>
                 {actionLoading === 'category'
-                  ? 'Committing Category...'
+                  ? 'Committing...'
                   : !isCategoryUnchanged
                   ? `Commit Category Correction`
                   : categoryReason.trim()
-                  ? 'Log Category Verification Note'
+                  ? 'Update Category Verification Note'
                   : 'Correct Category'}
               </span>
             </button>
