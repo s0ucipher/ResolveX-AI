@@ -240,6 +240,10 @@ export const AdminComplaintDetailPage: React.FC = () => {
       setError('Please select a facility division / department to assign.');
       return;
     }
+    if (!deptNote.trim()) {
+      setError('Dispatch Note / Assigned Technician is mandatory. Please enter technician, work order, or dispatch details.');
+      return;
+    }
 
     setActionLoading('assign');
     setError(null);
@@ -247,11 +251,11 @@ export const AdminComplaintDetailPage: React.FC = () => {
       const updated = await api.assignDepartment(
         complaint.public_id,
         assignedDept,
-        deptNote.trim() || undefined
+        deptNote.trim()
       );
       await syncAfterUpdate(
         updated,
-        `Division assigned: '${assignedDept}' with dispatch note saved.`
+        `Division assigned: '${assignedDept}' with mandatory dispatch note saved.`
       );
     } catch (err: any) {
       setError(err.message || 'Failed to assign department');
@@ -265,16 +269,18 @@ export const AdminComplaintDetailPage: React.FC = () => {
   // -------------------------------------------------------------
   const handleAdvanceToInProgress = async () => {
     if (!complaint) return;
+    if (!progressCrew.trim()) {
+      setError('Lead Technician / Crew on Site is mandatory before commencing on-site work.');
+      return;
+    }
+
     setActionLoading('step-in-progress');
     setError(null);
     try {
-      const parts: string[] = [];
-      if (progressCrew.trim()) parts.push(`Crew on site: ${progressCrew.trim()}`);
+      const parts: string[] = [`Crew on site: ${progressCrew.trim()}`];
       if (progressDuration.trim()) parts.push(`Estimated duration: ${progressDuration.trim()}`);
       if (progressNote.trim()) parts.push(progressNote.trim());
-      const fullNote = parts.length > 0
-        ? parts.join(' | ')
-        : 'Maintenance crew arrived on site; repair work actively commenced.';
+      const fullNote = parts.join(' | ');
 
       const updated = await api.updateStatus(complaint.public_id, {
         status: 'In Progress',
@@ -425,25 +431,25 @@ export const AdminComplaintDetailPage: React.FC = () => {
   // -------------------------------------------------------------
   const handlePriorityOverride = async () => {
     if (!complaint) return;
-    const isSame = selectedPriority === complaint.final_priority;
-    if (isSame && !priorityReason.trim()) {
-      setError('To update priority, choose a different level from the dropdown or enter an audit note to record.');
+    if (!priorityReason.trim()) {
+      setError('Justification / review reason is mandatory. Please enter an explanation before committing priority.');
       return;
     }
 
     setActionLoading('priority');
     setError(null);
     try {
+      const isSame = selectedPriority === complaint.final_priority;
       const updated = await api.overridePriority(
         complaint.public_id,
         selectedPriority,
-        priorityReason.trim() || undefined
+        priorityReason.trim()
       );
       await syncAfterUpdate(
         updated,
         isSame
-          ? 'Priority review note successfully committed to the audit trail.'
-          : `Priority overridden from '${complaint.final_priority}' to '${selectedPriority}'.`
+          ? 'Priority review justification note successfully committed to the audit trail.'
+          : `Priority overridden from '${complaint.final_priority}' to '${selectedPriority}' with justification saved.`
       );
     } catch (err: any) {
       setError(err.message || 'Failed to update priority');
@@ -457,25 +463,25 @@ export const AdminComplaintDetailPage: React.FC = () => {
   // -------------------------------------------------------------
   const handleCategoryOverride = async () => {
     if (!complaint) return;
-    const isSame = selectedCategory === complaint.category;
-    if (isSame && !categoryReason.trim()) {
-      setError('To reclassify, select a different category or enter a verification note to record.');
+    if (!categoryReason.trim()) {
+      setError('Correction / verification reason is mandatory. Please explain the category assignment.');
       return;
     }
 
     setActionLoading('category');
     setError(null);
     try {
+      const isSame = selectedCategory === complaint.category;
       const updated = await api.overrideCategory(
         complaint.public_id,
         selectedCategory,
-        categoryReason.trim() || undefined
+        categoryReason.trim()
       );
       await syncAfterUpdate(
         updated,
         isSame
           ? 'Category verification note successfully committed to the audit trail.'
-          : `Category reclassified from '${complaint.category}' to '${selectedCategory}'.`
+          : `Category reclassified from '${complaint.category}' to '${selectedCategory}' with reason saved.`
       );
     } catch (err: any) {
       setError(err.message || 'Failed to update category');
@@ -1041,23 +1047,25 @@ export const AdminComplaintDetailPage: React.FC = () => {
                     <span>Stage 2 of 5: Triage Active</span>
                   </div>
                   <p className="text-[11px] leading-relaxed">
-                    Review and verify the priority/category below. Next, select a facility division in the Assign Division card to dispatch a work crew.
+                    Review priority & category below. To advance to Stage 3, select a division and enter a mandatory dispatch note.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleAssignDepartment}
-                  disabled={isSaving || !assignedDept}
+                  disabled={isSaving || !assignedDept || !deptNote.trim()}
                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-primaryViolet to-brightBlue hover:opacity-95 text-white font-bold text-xs shadow-glossy-light dark:shadow-neon-violet/30 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Building className="w-3.5 h-3.5" />
                   <span>
                     {actionLoading === 'assign'
                       ? 'Dispatching...'
-                      : assignedDept
-                      ? `Advance to Stage 3: Assign to ${assignedDept} →`
-                      : 'Select Division Below to Advance to Stage 3'}
+                      : !assignedDept
+                      ? 'Select Division Below to Advance to Stage 3'
+                      : !deptNote.trim()
+                      ? 'Enter Mandatory Dispatch Note Below to Advance'
+                      : `Advance to Stage 3: Assign to ${assignedDept} →`}
                   </span>
                 </button>
               </div>
@@ -1072,20 +1080,24 @@ export const AdminComplaintDetailPage: React.FC = () => {
                     <span>Stage 3 of 5: Assigned to {complaint.assigned_department}</span>
                   </div>
                   <p className="text-[11px] leading-relaxed">
-                    Maintenance division is dispatched. Once technicians arrive on site, log crew details and advance to In Progress.
+                    Maintenance division is dispatched. Once technicians arrive on site, log crew details (mandatory) and advance to In Progress.
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Lead Technician / Crew on Site
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Lead Technician / Crew on Site <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Mandatory</span>
+                  </div>
                   <input
                     type="text"
+                    required
                     value={progressCrew}
                     onChange={(e) => setProgressCrew(e.target.value)}
-                    placeholder="e.g. Lead Electrician Ramesh & assistant"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:outline-none focus:border-brightBlue"
+                    placeholder="e.g. Lead Electrician Ramesh & assistant (mandatory)"
+                    className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border ${!progressCrew.trim() ? 'border-amber-300/80 dark:border-amber-500/40' : 'border-slate-200 dark:border-white/10'} text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:outline-none focus:border-brightBlue`}
                   />
                 </div>
 
@@ -1118,12 +1130,16 @@ export const AdminComplaintDetailPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAdvanceToInProgress}
-                  disabled={isSaving}
+                  disabled={isSaving || !progressCrew.trim()}
                   className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs shadow-xs disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Wrench className="w-3.5 h-3.5" />
                   <span>
-                    {actionLoading === 'step-in-progress' ? 'Advancing...' : 'Advance to Stage 4: Mark Work In Progress →'}
+                    {actionLoading === 'step-in-progress'
+                      ? 'Advancing...'
+                      : !progressCrew.trim()
+                      ? 'Enter Mandatory Crew on Site Above'
+                      : 'Advance to Stage 4: Mark Work In Progress →'}
                   </span>
                 </button>
               </div>
@@ -1348,31 +1364,44 @@ export const AdminComplaintDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Dispatch Note / Work Order / Assigned Technician
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Dispatch Note / Work Order / Assigned Technician <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Mandatory</span>
+              </div>
               <input
                 type="text"
+                required
                 value={deptNote}
                 onChange={(e) => setDeptNote(e.target.value)}
-                placeholder="e.g. Work order #204, assigned to technician Ravi"
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-primaryViolet"
+                placeholder="e.g. Work order #204, assigned to technician Ravi (mandatory)"
+                className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border ${!deptNote.trim() ? 'border-amber-300/90 dark:border-amber-500/50' : 'border-slate-200 dark:border-white/10'} text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-brightBlue`}
               />
+              {!deptNote.trim() && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                  * Mandatory: Enter work order ID, assigned technician, or dispatch note.
+                </p>
+              )}
             </div>
 
             <button
               type="button"
               onClick={handleAssignDepartment}
-              disabled={isSaving || !assignedDept}
+              disabled={isSaving || !assignedDept || !deptNote.trim()}
               className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 text-slate-800 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-white/10 disabled:opacity-50 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
             >
               <Building className="w-3.5 h-3.5" />
               <span>
                 {actionLoading === 'assign'
                   ? 'Updating Division...'
+                  : !assignedDept
+                  ? 'Select Division Above'
+                  : !deptNote.trim()
+                  ? 'Enter Mandatory Dispatch Note Above'
                   : complaint.assigned_department
-                  ? `Update Division & Dispatch Note`
-                  : `Assign & Update Division`}
+                  ? 'Update Division & Dispatch Note'
+                  : 'Assign & Update Division'}
               </span>
             </button>
           </div>
@@ -1417,33 +1446,42 @@ export const AdminComplaintDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Justification / Review Reason
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Justification / Review Reason <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Mandatory</span>
+              </div>
               <input
                 type="text"
+                required
                 value={priorityReason}
                 onChange={(e) => setPriorityReason(e.target.value)}
-                placeholder="e.g. Done work, verified priority level"
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-amber-500"
+                placeholder="e.g. Verified safety danger on-site, priority confirmed (mandatory)"
+                className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border ${!priorityReason.trim() ? 'border-amber-300/90 dark:border-amber-500/50' : 'border-slate-200 dark:border-white/10'} text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-amber-500`}
               />
+              {!priorityReason.trim() && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                  * Mandatory: Enter a justification reason before committing priority override.
+                </p>
+              )}
             </div>
 
             <button
               type="button"
               onClick={handlePriorityOverride}
-              disabled={isSaving || (isPriorityUnchanged && !priorityReason.trim())}
+              disabled={isSaving || !priorityReason.trim()}
               className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs disabled:opacity-50 transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
             >
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>
                 {actionLoading === 'priority'
                   ? 'Committing...'
+                  : !priorityReason.trim()
+                  ? 'Enter Mandatory Justification Above'
                   : !isPriorityUnchanged
                   ? `Commit Priority Override (${complaint.final_priority} → ${selectedPriority})`
-                  : priorityReason.trim()
-                  ? 'Update Priority Review Note'
-                  : 'Commit Priority Override'}
+                  : 'Commit Priority Review Note'}
               </span>
             </button>
           </div>
@@ -1491,33 +1529,42 @@ export const AdminComplaintDetailPage: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                Correction / Verification Reason
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Correction / Verification Reason <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Mandatory</span>
+              </div>
               <input
                 type="text"
+                required
                 value={categoryReason}
                 onChange={(e) => setCategoryReason(e.target.value)}
-                placeholder="e.g. Verified correct category or Water leak from AC unit"
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-primaryViolet"
+                placeholder="e.g. Water leak from AC drain line, reclassified to Water Supply (mandatory)"
+                className={`w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border ${!categoryReason.trim() ? 'border-amber-300/90 dark:border-amber-500/50' : 'border-slate-200 dark:border-white/10'} text-xs text-[#172033] dark:text-[#F8FAFC] font-medium focus:bg-white dark:focus:bg-[#151D38] focus:outline-none focus:border-primaryViolet`}
               />
+              {!categoryReason.trim() && (
+                <p className="text-[10px] text-violet-600 dark:text-violet-400 font-medium">
+                  * Mandatory: Enter a verification or correction reason before committing category.
+                </p>
+              )}
             </div>
 
             <button
               type="button"
               onClick={handleCategoryOverride}
-              disabled={isSaving || (isCategoryUnchanged && !categoryReason.trim())}
+              disabled={isSaving || !categoryReason.trim()}
               className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold text-xs disabled:opacity-50 transition-all shadow-glossy-light dark:shadow-neon-violet/30 cursor-pointer flex items-center justify-center gap-1.5"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>
                 {actionLoading === 'category'
                   ? 'Committing...'
+                  : !categoryReason.trim()
+                  ? 'Enter Mandatory Reason Above'
                   : !isCategoryUnchanged
-                  ? `Commit Category Correction`
-                  : categoryReason.trim()
-                  ? 'Update Category Verification Note'
-                  : 'Correct Category'}
+                  ? 'Commit Category Correction'
+                  : 'Commit Category Verification Note'}
               </span>
             </button>
           </div>

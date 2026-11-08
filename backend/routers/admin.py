@@ -104,20 +104,17 @@ def override_category(
 
     old_cat = complaint.category
     new_cat = payload.category.strip()
-    if old_cat == new_cat and not payload.reason:
-        return ComplaintOut.model_validate(complaint)
+    if not payload.reason or not payload.reason.strip():
+        raise HTTPException(status_code=400, detail="Correction or verification reason is mandatory.")
 
     now = get_utc_now()
     complaint.category = new_cat
     complaint.updated_at = now
 
     if old_cat != new_cat:
-        note_text = f"Category updated from '{old_cat}' to '{new_cat}' by Admin ({admin.name})."
+        note_text = f"Category updated from '{old_cat}' to '{new_cat}' by Admin ({admin.name}). Reason: {payload.reason.strip()}"
     else:
-        note_text = f"Category review confirmed '{new_cat}' by Admin ({admin.name})."
-
-    if payload.reason:
-        note_text += f" Reason: {payload.reason}"
+        note_text = f"Category review confirmed '{new_cat}' by Admin ({admin.name}). Reason: {payload.reason.strip()}"
 
     history = StatusHistory(
         complaint_id=complaint.id,
@@ -148,20 +145,17 @@ def override_priority(
 
     old_priority = complaint.final_priority
     new_priority = payload.priority.strip()
-    if old_priority == new_priority and not payload.reason:
-        return ComplaintOut.model_validate(complaint)
+    if not payload.reason or not payload.reason.strip():
+        raise HTTPException(status_code=400, detail="Justification or review reason is mandatory.")
 
     now = get_utc_now()
     complaint.final_priority = new_priority
     complaint.updated_at = now
 
     if old_priority != new_priority:
-        note_text = f"Priority overridden from '{old_priority}' to '{new_priority}' by Admin ({admin.name})."
+        note_text = f"Priority overridden from '{old_priority}' to '{new_priority}' by Admin ({admin.name}). Justification: {payload.reason.strip()}"
     else:
-        note_text = f"Priority review confirmed '{new_priority}' by Admin ({admin.name})."
-
-    if payload.reason:
-        note_text += f" Justification: {payload.reason}"
+        note_text = f"Priority review confirmed '{new_priority}' by Admin ({admin.name}). Justification: {payload.reason.strip()}"
 
     history = StatusHistory(
         complaint_id=complaint.id,
@@ -188,6 +182,9 @@ def assign_department(
         raise HTTPException(status_code=404, detail="Complaint not found")
 
     dept = payload.department.strip()
+    if not payload.note or not payload.note.strip():
+        raise HTTPException(status_code=400, detail="Dispatch note or assigned technician details are mandatory.")
+
     old_dept = complaint.assigned_department or "Unassigned"
     old_status = complaint.status
     now = get_utc_now()
@@ -199,11 +196,9 @@ def assign_department(
         complaint.status = "Assigned"
 
     if old_status == "Rejected":
-        note_text = f"Ticket restored from Rejected and assigned to department '{dept}' by Admin ({admin.name})."
+        note_text = f"Ticket restored from Rejected and assigned to department '{dept}' by Admin ({admin.name}). Note: {payload.note.strip()}"
     else:
-        note_text = f"Assigned to department '{dept}' (previously {old_dept}) by Admin ({admin.name})."
-    if payload.note:
-        note_text += f" Note: {payload.note}"
+        note_text = f"Assigned to department '{dept}' (previously {old_dept}) by Admin ({admin.name}). Note: {payload.note.strip()}"
 
     history = StatusHistory(
         complaint_id=complaint.id,

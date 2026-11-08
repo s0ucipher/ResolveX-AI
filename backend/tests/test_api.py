@@ -512,6 +512,50 @@ def test_step_by_step_lifecycle_enforcement_and_rejection_restoration():
     assert resolved_res.json()["status"] == "Resolved"
     assert resolved_res.json()["resolved_at"] is not None
 
+def test_mandatory_audit_notes_and_reasons_enforcement():
+    admin_token = get_auth_token("admin@complainai.ai", "Admin@ComplainAI2026!")
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    student_token = get_auth_token("student@complainai.ai", "Student@ComplainAI2026!")
+    student_headers = {"Authorization": f"Bearer {student_token}"}
+
+    # Create test complaint
+    res = client.post("/api/complaints", json={
+        "title": "Mandatory audit fields test",
+        "description": "Checking that note and reasons cannot be submitted blank.",
+        "location": "Hostel 3",
+        "category": "Water supply",
+        "affected_count": 10,
+        "duration_days": 1,
+        "user_email": "student@complainai.ai"
+    }, headers=student_headers)
+    assert res.status_code == 201
+    pub_id = res.json()["public_id"]
+
+    # 1. Blank note on assign should fail
+    assign_fail = client.patch(f"/api/admin/complaints/{pub_id}/assign", json={
+        "department": "Water Supply & Plumbing Works",
+        "note": "   "
+    }, headers=admin_headers)
+    assert assign_fail.status_code == 400
+    assert "mandatory" in assign_fail.json()["detail"].lower()
+
+    # 2. Blank reason on priority override should fail
+    prio_fail = client.patch(f"/api/admin/complaints/{pub_id}/priority", json={
+        "priority": "Critical",
+        "reason": ""
+    }, headers=admin_headers)
+    assert prio_fail.status_code == 400
+    assert "mandatory" in prio_fail.json()["detail"].lower()
+
+    # 3. Blank reason on category correction should fail
+    cat_fail = client.patch(f"/api/admin/complaints/{pub_id}/category", json={
+        "category": "Electrical and lighting",
+        "reason": "  "
+    }, headers=admin_headers)
+    assert cat_fail.status_code == 400
+    assert "mandatory" in cat_fail.json()["detail"].lower()
+
+
 
 
 
