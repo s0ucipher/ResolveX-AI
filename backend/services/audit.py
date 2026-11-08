@@ -11,7 +11,7 @@ VALID_TRANSITIONS = {
     "In Progress": ["Resolved", "Under Review", "Rejected"],
     "Resolved": ["Reopened"],
     "Reopened": ["In Progress", "Under Review", "Assigned"],
-    "Rejected": ["Under Review"]
+    "Rejected": ["Under Review", "Assigned"]
 }
 
 def get_utc_now():

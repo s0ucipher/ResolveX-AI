@@ -133,6 +133,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
   const [resolutionSignOff, setResolutionSignOff] = useState<string>('');
   const [reopenReason, setReopenReason] = useState<string>('');
   const [rejectionReason, setRejectionReason] = useState<string>('');
+  const [restoreNote, setRestoreNote] = useState<string>('');
 
   // In-place editing toggles
   const [editingResolution, setEditingResolution] = useState(false);
@@ -396,6 +397,30 @@ export const AdminComplaintDetailPage: React.FC = () => {
   };
 
   // -------------------------------------------------------------
+  // Restore Complaint from Rejected to Under Review (Stage 2)
+  // -------------------------------------------------------------
+  const handleRestoreComplaint = async () => {
+    if (!complaint) return;
+    setActionLoading('restore');
+    setError(null);
+    try {
+      const note = restoreNote.trim()
+        ? `Ticket restored from Rejected by Administrator. Reason: ${restoreNote.trim()}`
+        : 'Ticket restored to Stage 2 (Under Review) by Administrator for reconsidered triage.';
+      const updated = await api.updateStatus(complaint.public_id, {
+        status: 'Under Review',
+        note
+      });
+      await syncAfterUpdate(updated, "Complaint restored to Stage 2: 'Under Review'.");
+      setRestoreNote('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to restore complaint');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // -------------------------------------------------------------
   // Human Priority Override / Update Note
   // -------------------------------------------------------------
   const handlePriorityOverride = async () => {
@@ -594,40 +619,56 @@ export const AdminComplaintDetailPage: React.FC = () => {
           </span>
         </div>
 
-        {complaint.status === 'Rejected' ? (
-          <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-3 font-medium">
+        {/* ALWAYS RENDER THE 5 STAGES */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 pt-1">
+          {LIFECYCLE_STAGES.map((st) => {
+            const isRejected = complaint.status === 'Rejected';
+            const isPast = !isRejected && currentStepIndex > st.step;
+            const isCurrent = !isRejected && currentStepIndex === st.step;
+            const isStageRejected = isRejected && st.step === 2;
+            const isStageCompletedUnderRejected = isRejected && st.step === 1;
+
+            return (
+              <div
+                key={st.step}
+                className={`p-3 rounded-2xl border text-center transition-all ${
+                  isStageCompletedUnderRejected || isPast
+                    ? 'bg-emerald-50 dark:bg-mintGreen/15 border-emerald-200 dark:border-mintGreen/40 text-emerald-800 dark:text-mintGreen'
+                    : isStageRejected
+                    ? 'bg-rose-50 dark:bg-rose-500/20 border-rose-300 dark:border-rose-500/50 text-rose-700 dark:text-rose-300 font-bold'
+                    : isCurrent
+                    ? 'bg-gradient-to-r from-primaryViolet to-brightBlue border-transparent text-white font-black shadow-glossy-light dark:shadow-neon-violet/30'
+                    : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 font-medium'
+                }`}
+              >
+                <div className="text-[10px] uppercase font-bold tracking-wider mb-0.5 opacity-80">
+                  Stage {st.step}
+                </div>
+                <div className="text-xs font-bold truncate">
+                  {isStageRejected ? 'Rejected at Triage' : st.name}
+                </div>
+                <div className="mt-1 flex justify-center">
+                  {(isStageCompletedUnderRejected || isPast) && (
+                    <CheckCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-mintGreen" />
+                  )}
+                  {isStageRejected && (
+                    <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  )}
+                  {isCurrent && <span className="w-2 h-2 rounded-full bg-white animate-ping" />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {complaint.status === 'Rejected' && (
+          <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-3 font-medium animate-in fade-in">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-              <span>Complaint is currently <strong>Rejected</strong>. Reason: {complaint.rejection_reason || 'Out of jurisdiction'}</span>
+              <span>
+                Complaint currently <strong>Rejected at Stage 2 Triage</strong>. Reason: {complaint.rejection_reason || 'Issue is Invalid / Out of campus maintenance scope.'}
+              </span>
             </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 pt-1">
-            {LIFECYCLE_STAGES.map((st) => {
-              const isPast = currentStepIndex > st.step;
-              const isCurrent = currentStepIndex === st.step;
-              return (
-                <div
-                  key={st.step}
-                  className={`p-3 rounded-2xl border text-center transition-all ${
-                    isPast
-                      ? 'bg-emerald-50 dark:bg-mintGreen/15 border-emerald-200 dark:border-mintGreen/40 text-emerald-800 dark:text-mintGreen'
-                      : isCurrent
-                      ? 'bg-gradient-to-r from-primaryViolet to-brightBlue border-transparent text-white font-black shadow-glossy-light dark:shadow-neon-violet/30'
-                      : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 font-medium'
-                  }`}
-                >
-                  <div className="text-[10px] uppercase font-bold tracking-wider mb-0.5 opacity-80">
-                    Stage {st.step}
-                  </div>
-                  <div className="text-xs font-bold truncate">{st.name}</div>
-                  <div className="mt-1 flex justify-center">
-                    {isPast && <CheckCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-mintGreen" />}
-                    {isCurrent && <span className="w-2 h-2 rounded-full bg-white animate-ping" />}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
       </div>
@@ -911,6 +952,45 @@ export const AdminComplaintDetailPage: React.FC = () => {
               </div>
               <StatusBadge status={complaint.status} size="sm" />
             </div>
+
+            {/* TICKET REJECTED CONTROLLER */}
+            {complaint.status === 'Rejected' && (
+              <div className="space-y-3.5 animate-in fade-in">
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 text-xs text-rose-800 dark:text-rose-200 space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-sm">
+                    <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>Ticket Currently Rejected</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed">
+                    This complaint was rejected at Stage 2 Triage (Reason: <strong>{complaint.rejection_reason || 'Issue is Invalid'}</strong>).
+                    To process this ticket through the 5-stage lifecycle, restore it to Stage 2: Under Review.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Restoration Remarks (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={restoreNote}
+                    onChange={(e) => setRestoreNote(e.target.value)}
+                    placeholder="e.g. Student clarified safety concern; restoring for active dispatch."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200 dark:border-white/10 text-xs text-[#172033] dark:text-[#F8FAFC] font-medium"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRestoreComplaint}
+                  disabled={isSaving}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-primaryViolet to-brightBlue hover:opacity-95 text-white font-bold text-xs shadow-glossy-light dark:shadow-neon-violet/30 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{actionLoading === 'restore' ? 'Restoring...' : 'Restore to Stage 2: Under Review →'}</span>
+                </button>
+              </div>
+            )}
 
             {/* STAGE 1: SUBMITTED */}
             {complaint.status === 'Submitted' && (

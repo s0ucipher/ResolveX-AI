@@ -16,6 +16,7 @@ import {
   Share2,
   Copy,
   CheckCheck,
+  XCircle,
   Cpu
 } from 'lucide-react';
 import { api } from '../services/api';
@@ -83,7 +84,11 @@ export const TrackComplaintPage: React.FC = () => {
 
   const getStepStatus = (stepName: string) => {
     if (!complaint) return 'upcoming';
-    if (complaint.status === 'Rejected') return stepName === 'Submitted' ? 'completed' : 'rejected';
+    if (complaint.status === 'Rejected') {
+      if (stepName === 'Submitted') return 'completed';
+      if (stepName === 'Under Review') return 'rejected';
+      return 'upcoming';
+    }
 
     const currentIdx = LIFECYCLE_STEPS.indexOf(complaint.status);
     const stepIdx = LIFECYCLE_STEPS.indexOf(stepName);
@@ -194,42 +199,70 @@ export const TrackComplaintPage: React.FC = () => {
 
           {/* 5-Stage Lifecycle Stepper */}
           <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-white/10 bg-white dark:bg-[#171F3B] space-y-4">
-            <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">Resolution Progress Pipeline</h3>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-400">
+                Resolution Progress Pipeline
+              </h3>
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                5-Stage Audited Workflow
+              </span>
+            </div>
 
+            {/* Permanent 5-Stage Stepper Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {LIFECYCLE_STEPS.map((step, idx) => {
+                const state = getStepStatus(step);
+                return (
+                  <div
+                    key={step}
+                    className={`p-3.5 rounded-2xl border text-center transition-all ${
+                      state === 'completed'
+                        ? 'bg-emerald-50 dark:bg-mintGreen/15 border-emerald-200 dark:border-mintGreen/40 text-emerald-800 dark:text-mintGreen font-bold'
+                        : state === 'rejected'
+                        ? 'bg-rose-50 dark:bg-rose-500/20 border-rose-300 dark:border-rose-500/50 text-rose-700 dark:text-rose-300 font-bold'
+                        : state === 'current'
+                        ? 'bg-gradient-to-r from-primaryViolet to-brightBlue border-transparent text-white font-black shadow-glossy-light dark:shadow-neon-violet/30'
+                        : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 font-medium'
+                    }`}
+                  >
+                    <div className="text-[10px] uppercase font-bold tracking-wider mb-1 opacity-80">
+                      Stage {idx + 1}
+                    </div>
+                    <div className="text-xs font-bold">
+                      {state === 'rejected' ? 'Rejected at Triage' : step}
+                    </div>
+                    <div className="mt-2 flex justify-center">
+                      {state === 'completed' && <CheckCheck className="w-4 h-4 text-emerald-600 dark:text-mintGreen" />}
+                      {state === 'rejected' && <XCircle className="w-4 h-4 text-rose-500 shrink-0" />}
+                      {state === 'current' && <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Stage Status Callout / Rejection Banner */}
             {complaint.status === 'Rejected' ? (
-              <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs space-y-1 font-medium">
+              <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs space-y-1 font-medium animate-in fade-in">
                 <div className="font-bold flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-500" />
-                  <span>Complaint Rejected</span>
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>Complaint Rejected at Stage 2 (Administrative Triage)</span>
                 </div>
-                <p className="text-[11px] text-rose-600 dark:text-rose-400">Reason: {complaint.rejection_reason || 'Out of campus jurisdiction.'}</p>
+                <p className="text-[11px] text-rose-600 dark:text-rose-400">
+                  Reason: {complaint.rejection_reason || 'Issue is Invalid / Out of campus maintenance scope.'}
+                </p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                {LIFECYCLE_STEPS.map((step, idx) => {
-                  const state = getStepStatus(step);
-                  return (
-                    <div
-                      key={step}
-                      className={`p-3.5 rounded-2xl border text-center transition-all ${
-                        state === 'completed'
-                          ? 'bg-emerald-50 dark:bg-mintGreen/15 border-emerald-200 dark:border-mintGreen/40 text-emerald-800 dark:text-mintGreen font-bold'
-                          : state === 'current'
-                          ? 'bg-gradient-to-r from-primaryViolet to-brightBlue border-transparent text-white font-black shadow-glossy-light dark:shadow-neon-violet/30'
-                          : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5 text-slate-400 font-medium'
-                      }`}
-                    >
-                      <div className="text-[10px] uppercase font-bold tracking-wider mb-1 opacity-80">
-                        Stage {idx + 1}
-                      </div>
-                      <div className="text-xs">{step}</div>
-                      <div className="mt-2 flex justify-center">
-                        {state === 'completed' && <CheckCheck className="w-4 h-4 text-emerald-600 dark:text-mintGreen" />}
-                        {state === 'current' && <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#0F1530] border border-slate-200/80 dark:border-white/5 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2.5 font-medium">
+                <span className="w-2 h-2 rounded-full bg-primaryViolet dark:bg-darkCyan shrink-0" />
+                <span>
+                  {complaint.status === 'Submitted' && 'Stage 1 of 5 Active: Complaint lodged by student. Scheduled for facility triage and review.'}
+                  {complaint.status === 'Under Review' && 'Stage 2 of 5 Active: Administrative triage active. Engineering team verifying issue priority.'}
+                  {complaint.status === 'Assigned' && `Stage 3 of 5 Active: Assigned to ${complaint.assigned_department || 'facility maintenance'}. Crew dispatched.`}
+                  {complaint.status === 'In Progress' && 'Stage 4 of 5 Active: Maintenance crew actively working on-site.'}
+                  {complaint.status === 'Resolved' && 'Stage 5 Certified: Maintenance work completed, tested and signed off.'}
+                  {complaint.status === 'Reopened' && 'Ticket Reopened: Under follow-up review for recurring maintenance.'}
+                </span>
               </div>
             )}
           </div>

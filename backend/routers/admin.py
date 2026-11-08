@@ -189,21 +189,25 @@ def assign_department(
 
     dept = payload.department.strip()
     old_dept = complaint.assigned_department or "Unassigned"
+    old_status = complaint.status
     now = get_utc_now()
     complaint.assigned_department = dept
     complaint.updated_at = now
 
-    # Automatically move to 'Assigned' if currently 'Submitted' or 'Under Review'
-    if complaint.status in ["Submitted", "Under Review"]:
+    # Automatically move to 'Assigned' if currently 'Submitted', 'Under Review', or 'Rejected'
+    if complaint.status in ["Submitted", "Under Review", "Rejected"]:
         complaint.status = "Assigned"
 
-    note_text = f"Assigned to department '{dept}' (previously {old_dept}) by Admin ({admin.name})."
+    if old_status == "Rejected":
+        note_text = f"Ticket restored from Rejected and assigned to department '{dept}' by Admin ({admin.name})."
+    else:
+        note_text = f"Assigned to department '{dept}' (previously {old_dept}) by Admin ({admin.name})."
     if payload.note:
         note_text += f" Note: {payload.note}"
 
     history = StatusHistory(
         complaint_id=complaint.id,
-        previous_status=complaint.status,
+        previous_status=old_status,
         new_status=complaint.status,
         note=note_text,
         changed_by=f"Admin ({admin.name})",

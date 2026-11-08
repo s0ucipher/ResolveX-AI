@@ -399,16 +399,19 @@ export const api = {
       const comp = list.find(c => c.public_id.toUpperCase() === publicId.trim().toUpperCase());
       if (comp) {
         const oldDept = comp.assigned_department || 'Unassigned';
+        const oldStatus = comp.status;
         comp.assigned_department = department;
-        if (comp.status === 'Submitted' || comp.status === 'Under Review') {
+        if (comp.status === 'Submitted' || comp.status === 'Under Review' || comp.status === 'Rejected') {
           comp.status = 'Assigned';
         }
         comp.updated_at = new Date().toISOString();
         saveLocalComplaint(comp);
         recordLocalHistory(comp.public_id, {
-          previous_status: comp.status,
+          previous_status: oldStatus,
           new_status: comp.status,
-          note: `Assigned to department '${department}' (previously ${oldDept}) by Administrator.${note ? ` Note: ${note}` : ''}`,
+          note: oldStatus === 'Rejected'
+            ? `Ticket restored from Rejected and assigned to department '${department}' by Administrator.${note ? ` Note: ${note}` : ''}`
+            : `Assigned to department '${department}' (previously ${oldDept}) by Administrator.${note ? ` Note: ${note}` : ''}`,
           changed_by: 'Administrator'
         });
         comp.history = getLocalHistory(comp.public_id);

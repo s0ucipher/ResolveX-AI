@@ -434,5 +434,84 @@ def test_facility_admin_portal_access_and_lifecycle_updates():
     assert new_admin_check.status_code == 200
     assert "items" in new_admin_check.json()
 
+def test_step_by_step_lifecycle_enforcement_and_rejection_restoration():
+    admin_token = get_auth_token("admin@complainai.ai", "Admin@ComplainAI2026!")
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    student_token = get_auth_token("student@complainai.ai", "Student@ComplainAI2026!")
+    student_headers = {"Authorization": f"Bearer {student_token}"}
+
+    # 1. Student submits a new complaint
+    unique_tag = uuid.uuid4().hex[:6]
+    res = client.post("/api/complaints", json={
+        "title": f"Lifecycle test complaint {unique_tag}",
+        "description": "Testing strict 5-stage sequential lifecycle transitions without skipping.",
+        "location": "Library Block B",
+        "category": "Civil Infrastructure & Structural Maintenance",
+        "affected_count": 25,
+        "duration_days": 1,
+        "user_email": "student@complainai.ai"
+    }, headers=student_headers)
+    assert res.status_code == 201
+    pub_id = res.json()["public_id"]
+    assert res.json()["status"] == "Submitted"
+
+    # 2. Admin cannot jump directly to Resolved from Submitted
+    jump_res = client.patch(f"/api/admin/complaints/{pub_id}/status", json={
+        "status": "Resolved",
+        "resolution_notes": "Trying to skip steps"
+    }, headers=admin_headers)
+    assert jump_res.status_code == 400
+    assert "Invalid status transition" in jump_res.json()["detail"]
+
+    # 3. Reject at Stage 2 Triage
+    reject_res = client.patch(f"/api/admin/complaints/{pub_id}/status", json={
+        "status": "Rejected",
+        "rejection_reason": "Issue is Invalid"
+    }, headers=admin_headers)
+    assert reject_res.status_code == 200
+    assert reject_res.json()["status"] == "Rejected"
+    assert reject_res.json()["rejection_reason"] == "Issue is Invalid"
+
+    # 4. Cannot jump from Rejected straight to Resolved
+    jump_from_rejected = client.patch(f"/api/admin/complaints/{pub_id}/status", json={
+        "status": "Resolved",
+        "resolution_notes": "Illegal jump"
+    }, headers=admin_headers)
+    assert jump_from_rejected.status_code == 400
+
+    # 5. Restore from Rejected to Stage 2 (Under Review)
+    restore_res = client.patch(f"/api/admin/complaints/{pub_id}/status", json={
+        "status": "Under Review",
+        "note": "Reopened following additional safety evidence."
+    }, headers=admin_headers)
+    assert restore_res.status_code == 200
+    assert restore_res.json()["status"] == "Under Review"
+
+    # 6. Advance to Stage 3: Assigned
+    assign_res = client.patch(f"/api/admin/complaints/{pub_id}/assign", json={
+        "department": "Civil Infrastructure & Roads",
+        "note": "Technician squad assigned"
+    }, headers=admin_headers)
+    assert assign_res.status_code == 200
+    assert assign_res.json()["status"] == "Assigned"
+
+    # 7. Advance to Stage 4: In Progress
+    progress_res = client.patch(f"/api/admin/complaints/{pub_id}/status", json={
+        "status": "In Progress",
+        "note": "Crew on site: Civil team | Duration: 2 hours"
+    }, headers=admin_headers)
+    assert progress_res.status_code == 200
+    assert progress_res.json()["status"] == "In Progress"
+
+    # 8. Advance to Stage 5: Resolved
+    resolved_res = client.patch(f"/api/admin/complaints/{pub_id}/status", json={
+        "status": "Resolved",
+        "resolution_notes": "Tiles replaced and floor recemented. Tested safe for pedestrians."
+    }, headers=admin_headers)
+    assert resolved_res.status_code == 200
+    assert resolved_res.json()["status"] == "Resolved"
+    assert resolved_res.json()["resolved_at"] is not None
+
+
 
 
