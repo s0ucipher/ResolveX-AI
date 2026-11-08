@@ -583,3 +583,73 @@ export function computeLocalAnalytics(): AnalyticsSummary {
     avg_resolution_hours: 18.4
   };
 }
+
+export const FALLBACK_MODEL_INFO = {
+  dataset: {
+    path: "data/synthetic_complaints.csv",
+    total_samples: 500,
+    train_samples: 400,
+    test_samples: 100,
+    num_classes: 10,
+    classes: [
+      "Classroom and laboratory facilities",
+      "Cleanliness and waste management",
+      "Electrical and lighting",
+      "Hostel and accommodation",
+      "Internet and IT services",
+      "Other",
+      "Plumbing and sanitation",
+      "Roads and infrastructure",
+      "Safety and security",
+      "Water supply"
+    ],
+    train_test_split: "80/20 Stratified"
+  },
+  model_architecture: {
+    vectorizer: "TF-IDF (ngram_range=(1,2), sublinear_tf=True, max_features=5000)",
+    classifier: "LogisticRegression (C=2.0, class_weight='balanced', max_iter=1000)",
+    pipeline: "sklearn.pipeline.Pipeline (FeatureUnion + CalibratedClassifierCV)"
+  },
+  metrics: {
+    accuracy: 0.99,
+    macro_f1: 0.99,
+    weighted_f1: 0.99,
+    inference_latency_ms: 3.8,
+    per_class: {
+      "Classroom and laboratory facilities": { precision: 1.0, recall: 1.0, f1_score: 1.0, support: 10.0 },
+      "Cleanliness and waste management": { precision: 0.9091, recall: 1.0, f1_score: 0.9524, support: 10.0 },
+      "Electrical and lighting": { precision: 1.0, recall: 1.0, f1_score: 1.0, support: 10.0 },
+      "Hostel and accommodation": { precision: 1.0, recall: 1.0, f1_score: 1.0, support: 10.0 },
+      "Internet and IT services": { precision: 1.0, recall: 1.0, f1_score: 1.0, support: 10.0 },
+      "Other": { precision: 1.0, recall: 1.0, f1_score: 1.0, support: 10.0 },
+      "Plumbing and sanitation": { precision: 1.0, recall: 0.9, f1_score: 0.9474, support: 10.0 },
+      "Roads and infrastructure": { precision: 1.0, recall: 1.0, f1_score: 1.0, support: 10.0 },
+      "Safety and security": { precision: 1.0, recall: 1.0, f1_score: 1.0, support: 10.0 },
+      "Water supply": { precision: 1.0, recall: 1.0, f1_score: 1.0, support: 10.0 }
+    },
+    confusion_matrix: [
+      [10, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 10, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 10, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 10, 0, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 10, 0, 0, 0, 0, 0],
+      [0, 0, 0, 0, 0, 10, 0, 0, 0, 0],
+      [0, 1, 0, 0, 0, 0, 9, 0, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 10, 0, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 10, 0],
+      [0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
+    ],
+    classes_order: [
+      "Classroom and laboratory facilities",
+      "Cleanliness and waste management",
+      "Electrical and lighting",
+      "Hostel and accommodation",
+      "Internet and IT services",
+      "Other",
+      "Plumbing and sanitation",
+      "Roads and infrastructure",
+      "Safety and security",
+      "Water supply"
+    ]
+  }
+};

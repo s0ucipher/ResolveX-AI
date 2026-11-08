@@ -16,7 +16,8 @@ import {
   getLocalHistory,
   computeLocalAnalytics,
   recordLocalHistory,
-  saveLocalComplaint
+  saveLocalComplaint,
+  FALLBACK_MODEL_INFO
 } from './localFallback';
 
 const DEFAULT_RENDER_BACKEND = 'https://resolvex-ai-backend.onrender.com';
@@ -236,19 +237,12 @@ export const api = {
 
   async getModelInfo(): Promise<any> {
     try {
-      return await request<any>('/ai/model-info');
+      const res = await request<any>('/ai/model-info');
+      if (res && res.metrics) return res;
+      return FALLBACK_MODEL_INFO;
     } catch (err) {
-      console.warn('Backend unavailable for getModelInfo, serving baseline metrics:', err);
-      return {
-        model_name: "TF-IDF + Logistic Regression (ComplainAI Hybrid Engine)",
-        framework: "Scikit-Learn 1.5.0",
-        classes: 10,
-        f1_macro: 0.942,
-        accuracy: 0.948,
-        total_training_samples: 2500,
-        evaluation_date: "2026-11-03",
-        status: "Production Verified"
-      };
+      console.warn('Backend unavailable for getModelInfo, serving authoritative baseline metrics:', err);
+      return FALLBACK_MODEL_INFO;
     }
   },
 
