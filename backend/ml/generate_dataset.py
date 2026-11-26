@@ -188,50 +188,54 @@ SUFFIXES = [
     ""
 ]
 
-def generate_dataset(output_path: str, target_count_per_category: int = 50):
+def generate_dataset(output_path: str, target_count_per_category: int = 50, seed: int = 42):
+    random.seed(seed)
     rows = []
-    
-    for category, items in TEMPLATES.items():
+
+    for cat_idx, (category, items) in enumerate(TEMPLATES.items()):
         cat_count = 0
         # First add original 10 templates
-        for title, desc in items:
+        for tmpl_idx, (title, desc) in enumerate(items):
             loc = random.choice(LOCATIONS)
             rows.append({
                 "title": title,
                 "description": desc,
                 "category": category,
-                "location": loc
+                "location": loc,
+                "template_group": f"cat{cat_idx}_tmpl{tmpl_idx}",
             })
             cat_count += 1
-            
+
         # Generate variations to reach target_count_per_category
         while cat_count < target_count_per_category:
-            base_title, base_desc = random.choice(items)
+            tmpl_idx = random.randrange(len(items))
+            base_title, base_desc = items[tmpl_idx]
             prefix = random.choice(PREFIXES)
             suffix = random.choice(SUFFIXES)
             loc = random.choice(LOCATIONS)
-            
+
             # Synthesize title and description variations
             title_var = f"{prefix}{base_title}".strip()
             desc_var = f"{base_desc}{suffix}".strip()
-            
+
             rows.append({
                 "title": title_var,
                 "description": desc_var,
                 "category": category,
-                "location": loc
+                "location": loc,
+                "template_group": f"cat{cat_idx}_tmpl{tmpl_idx}",
             })
             cat_count += 1
-            
+
     # Shuffle dataset
     random.shuffle(rows)
-    
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["title", "description", "category", "location"])
+        writer = csv.DictWriter(f, fieldnames=["title", "description", "category", "location", "template_group"])
         writer.writeheader()
         writer.writerows(rows)
-        
+
     print(f"Generated {len(rows)} complaints across {len(CATEGORIES)} categories in {output_path}")
 
 if __name__ == "__main__":

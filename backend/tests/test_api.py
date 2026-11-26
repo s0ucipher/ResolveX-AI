@@ -1,8 +1,14 @@
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
+from backend.seed import seed_database
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _ensure_tables_and_seed(test_client):
+    seed_database()
 
 def test_health_check():
     res = client.get("/api/health")
@@ -286,7 +292,8 @@ def test_auto_category_classification_and_immediate_dashboard_listing():
         "category": None,
         "affected_count": 150,
         "duration_days": 1,
-        "user_email": "student@complainai.ai"
+        "user_email": "student@complainai.ai",
+        "idempotency_key": f"idem-{unique_marker}"
     }
     
     res = client.post("/api/complaints", json=payload, headers=student_headers)
@@ -297,7 +304,7 @@ def test_auto_category_classification_and_immediate_dashboard_listing():
     assert comp["status"] == "Submitted"
     pub_id = comp["public_id"]
 
-    # 2. Verify Deduplication: immediate resubmission within 30s returns identical record
+    # 2. Verify Idempotency: retry with same idempotency_key returns identical record
     res_dup = client.post("/api/complaints", json=payload, headers=student_headers)
     assert res_dup.status_code in [200, 201]
     assert res_dup.json()["public_id"] == pub_id
@@ -417,22 +424,14 @@ def test_facility_admin_portal_access_and_lifecycle_updates():
     assert demoted_user.role == "user"
     db.close()
 
-    # 8. Test Register-Admin API endpoint
+    # 8. Test Register-Admin API endpoint is disabled (server-controlled admin provisioning)
     admin_reg_email = f"newadmin_{unique_tag}@college.edu"
     admin_reg_res = client.post("/api/auth/register-admin", json={
         "name": "Prof. Facility Director",
         "email": admin_reg_email,
         "password": "AdminPassword123!"
     })
-    assert admin_reg_res.status_code == 201
-    admin_reg_data = admin_reg_res.json()
-    assert admin_reg_data["user"]["role"] == "admin"
-    new_admin_token = admin_reg_data["access_token"]
-
-    # Verify newly registered administrator can immediately access the Facility Admin Console
-    new_admin_check = client.get("/api/admin/complaints", headers={"Authorization": f"Bearer {new_admin_token}"})
-    assert new_admin_check.status_code == 200
-    assert "items" in new_admin_check.json()
+    assert admin_reg_res.status_code == 403
 
 def test_step_by_step_lifecycle_enforcement_and_rejection_restoration():
     admin_token = get_auth_token("admin@complainai.ai", "Admin@ComplainAI2026!")

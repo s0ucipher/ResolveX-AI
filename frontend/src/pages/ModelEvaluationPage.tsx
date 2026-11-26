@@ -147,13 +147,18 @@ export const ModelEvaluationPage: React.FC = () => {
   // Selected FAQ tab
   const [faqTab, setFaqTab] = useState<'architecture' | 'safety' | 'production'>('architecture');
 
+  const [modelInfoError, setModelInfoError] = useState<string | null>(null);
+
   useEffect(() => {
     async function loadInfo() {
       try {
         const data = await api.getModelInfo();
         setModelInfo(data);
-      } catch (err) {
+        setModelInfoError(null);
+      } catch (err: any) {
         console.error('Failed to load model evaluation metrics', err);
+        setModelInfo(null);
+        setModelInfoError(err?.message || 'Could not load model evaluation report.');
       } finally {
         setLoading(false);
       }
@@ -250,11 +255,13 @@ export const ModelEvaluationPage: React.FC = () => {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs uppercase font-mono font-medium px-3 py-1 rounded-full bg-violet-200/90 dark:bg-slate-800 text-primaryViolet dark:text-cyan-300 border border-slate-200 dark:border-slate-700 shadow-2xs">
-              Scikit-Learn 1.5.0 Production Pipeline
+              {modelInfo?.model_architecture?.sklearn_version
+                ? `Scikit-Learn ${modelInfo.model_architecture.sklearn_version} Pipeline`
+                : 'TF-IDF + LogisticRegression Pipeline'}
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 " />
-              Stratified Held-Out Test Set (80/20)
+              <span className={`w-2 h-2 rounded-full ${modelInfo?.metrics ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              {modelInfo?.dataset?.split_method || (modelInfoError ? 'Report unavailable' : 'Report pending')}
             </span>
           </div>
 
@@ -294,39 +301,64 @@ export const ModelEvaluationPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Unavailable / Pending Banner + Synthetic Caveat */}
+      {(!modelInfo?.metrics || modelInfoError) && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-500/40 text-xs text-amber-800 dark:text-amber-200">
+          <strong>Evaluation Report Unavailable:</strong>{' '}
+          {modelInfoError || modelInfo?.message || 'Run backend/ml/train.py to generate the grouped evaluation report.'}
+        </div>
+      )}
+
+      {modelInfo?.dataset?.campus_performance_note && (
+        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#1A2029] border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300">
+          <strong>Dataset Scope ({modelInfo.dataset.dataset_type || 'synthetic'}):</strong>{' '}
+          {modelInfo.dataset.campus_performance_note}
+        </div>
+      )}
+
       {/* Top Headline Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#1A2029] border border-slate-200 dark:border-white/10   space-y-1">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-primaryViolet dark:text-darkPurple">Overall Test Accuracy</div>
+          <div className="text-[11px] font-medium uppercase tracking-wider text-primaryViolet dark:text-darkPurple">Pooled Grouped Accuracy</div>
           <div className="text-3xl sm:text-4xl font-medium text-[#172337] dark:text-[#F8FAFC]">
-            {((modelInfo?.metrics?.accuracy || 0.99) * 100).toFixed(1)}%
+            {modelInfo?.metrics?.accuracy !== undefined
+              ? `${(modelInfo.metrics.accuracy * 100).toFixed(1)}%`
+              : 'Pending'}
           </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Stratified 100-sample test set</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            {modelInfo?.dataset?.split_method || 'Awaiting evaluation report'}
+          </div>
         </div>
 
         <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#1A2029] border border-emerald-100 dark:border-white/10   space-y-1">
           <div className="text-[11px] font-medium uppercase tracking-wider text-emerald-700 dark:text-darkMint">Macro F1-Score</div>
           <div className="text-3xl sm:text-4xl font-medium text-emerald-600 dark:text-darkMint">
-            {(modelInfo?.metrics?.macro_f1 || 0.99).toFixed(3)}
+            {modelInfo?.metrics?.macro_f1 !== undefined
+              ? modelInfo.metrics.macro_f1.toFixed(3)
+              : 'Pending'}
           </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Harmonic mean across 10 classes</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            {modelInfo?.dataset?.num_classes ? `Harmonic mean across ${modelInfo.dataset.num_classes} classes` : 'Report unavailable'}
+          </div>
         </div>
 
         <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#1A2029] border border-blue-100 dark:border-white/10   space-y-1">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-brightBlue dark:text-darkCyan">Inference Latency</div>
-          <div className="text-3xl sm:text-4xl font-medium text-[#172337] dark:text-[#F8FAFC]">
-            &lt; 4 ms
+          <div className="text-[11px] font-medium uppercase tracking-wider text-brightBlue dark:text-darkCyan">Model Version</div>
+          <div className="text-lg sm:text-xl font-mono font-medium text-[#172337] dark:text-[#F8FAFC] truncate">
+            {modelInfo?.model_architecture?.model_version || 'Unavailable'}
           </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Local single-threaded CPU runtime</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Local CPU TF-IDF + LogReg</div>
         </div>
 
         <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#1A2029] border border-amber-100 dark:border-white/10   space-y-1">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-amber-700 dark:text-darkAmber">Dataset Volume</div>
+          <div className="text-[11px] font-medium uppercase tracking-wider text-amber-700 dark:text-darkAmber">Synthetic Dataset</div>
           <div className="text-3xl sm:text-4xl font-medium text-amber-600 dark:text-darkAmber">
-            {modelInfo?.dataset?.total_samples || 500}
+            {modelInfo?.dataset?.total_samples ?? '—'}
           </div>
           <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-            Train: {modelInfo?.dataset?.train_samples || 400} | Test: {modelInfo?.dataset?.test_samples || 100}
+            {modelInfo?.dataset?.template_group_count
+              ? `${modelInfo.dataset.template_group_count} template groups`
+              : 'No dataset report loaded'}
           </div>
         </div>
       </div>

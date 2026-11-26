@@ -97,52 +97,31 @@ def is_firebase_admin_initialized() -> bool:
     except Exception:
         return False
 
-import datetime
-from jose import jwt, JWTError
-
 def verify_firebase_token(token: str) -> Optional[Dict[str, Any]]:
     """
-    Verifies a Firebase ID token.
-    1. Primary: Official Firebase Admin SDK (cryptographic signature verification)
-    2. Fallback: Google SecureToken claim validation (when service account credentials are pending on host)
+    Verifies a Firebase ID token using the official Firebase Admin SDK.
     Returns decoded token dictionary on success, or None on failure.
+    Never falls back to unverified JWT claim parsing.
     """
     if not token or not isinstance(token, str):
         return None
 
-    # 1. Primary verification via Firebase Admin SDK
     if not is_firebase_admin_initialized():
         init_firebase_admin()
 
-    if is_firebase_admin_initialized():
-        try:
-            from firebase_admin import auth
-            decoded_token = auth.verify_id_token(token, check_revoked=False)
-            return decoded_token
-        except Exception as e:
-            logger.debug(f"Official Firebase Admin SDK token verification notice: {e}")
+    if not is_firebase_admin_initialized():
+        logger.warning("Firebase Admin SDK is not initialized; rejecting Firebase token verification.")
+        return None
 
-    # 2. Resilient fallback verification via Google SecureToken structure
     try:
-        claims = jwt.get_unverified_claims(token)
-        iss = claims.get("iss", "")
-        exp = claims.get("exp", 0)
-        sub = claims.get("sub") or claims.get("user_id")
-        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
-
-        # Must be an authentic Google SecureToken issuer and not expired
-        if iss.startswith("https://securetoken.google.com/") and sub and exp > now_ts:
-            return {
-                "uid": sub,
-                "email": claims.get("email"),
-                "name": claims.get("name"),
-                "admin": claims.get("admin") is True,
-                "role": claims.get("role"),
-                "email_verified": claims.get("email_verified", False),
-                "firebase": claims.get("firebase", {})
-            }
-    except (JWTError, Exception) as fallback_err:
-        logger.debug(f"Fallback token parsing failed: {fallback_err}")
-
-    return None
+        from firebase_admin import auth
+        decoded_token = auth.verify_id_token(token, check_revoked=False)
+        expected_project_id = os.getenv("FIREBASE_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+        if expected_project_id and decoded_token.get("aud") and decoded_token.get("aud") != expected_project_id:
+            logger.warning("Firebase token audience mismatch.")
+            return None
+        return decoded_token
+    except Exception as e:
+        logger.debug(f"Firebase Admin SDK token verification failed: {e}")
+        return None
 

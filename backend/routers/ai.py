@@ -117,7 +117,7 @@ def analyze_scanned_report(payload: ScannedReportRequest):
     return ScannedReportResponse(
         extracted_title=title,
         extracted_description=description,
-        extracted_location=detected_location or "Campus Facility (Extracted from Scan)",
+        extracted_location=detected_location,
         extracted_affected_count=detected_count,
         predicted_category=cat_result["predicted_category"],
         confidence=cat_result["confidence"],
@@ -158,14 +158,16 @@ def analyze_issue_photo(payload: PhotoAnalysisRequest):
         user_notes=payload.user_notes
     )
     return PhotoAnalysisResponse(
-        suggested_title=res.get("suggested_title", "Reported Campus Issue"),
-        simple_report=res.get("simple_report", "Visual inspection of reported maintenance problem."),
-        suggested_department=res.get("suggested_department", "Other"),
-        suggested_priority=res.get("suggested_priority", "Medium"),
-        is_safety_hazard=bool(res.get("is_safety_hazard", False)),
-        detected_hazards=res.get("detected_hazards", []),
-        recommended_action=res.get("recommended_action", "Technician physical inspection required."),
-        model_used=res.get("model_used", "gemini-3.5-flash-lite")
+        analysis_status=res.get("analysis_status", "unavailable"),
+        error_message=res.get("error_message"),
+        suggested_title=res.get("suggested_title"),
+        simple_report=res.get("simple_report"),
+        suggested_department=res.get("suggested_department"),
+        suggested_priority=res.get("suggested_priority"),
+        is_safety_hazard=res.get("is_safety_hazard"),
+        detected_hazards=res.get("detected_hazards") or [],
+        recommended_action=res.get("recommended_action"),
+        model_used=res.get("model_used"),
     )
 
 @router.post("/verify-work", response_model=WorkVerificationResponse)
@@ -184,17 +186,21 @@ def verify_resolution_photo(payload: WorkVerificationRequest):
             passed=bool(item.get("passed", False)),
             note=item.get("note", "")
         )
-        for item in res.get("checklist", [])
+        for item in (res.get("checklist") or [])
+        if isinstance(item, dict)
     ]
+    raw_score = res.get("quality_score")
     return WorkVerificationResponse(
-        verdict=res.get("verdict", "PROPERLY_DONE"),
-        quality_score=int(res.get("quality_score", 75)),
-        verdict_headline=res.get("verdict_headline", "Resolution Inspected"),
-        detailed_report=res.get("detailed_report", "Work completion photo audited."),
+        verification_status=res.get("verification_status", "unavailable"),
+        error_message=res.get("error_message"),
+        verdict=res.get("verdict"),
+        quality_score=int(raw_score) if raw_score is not None else None,
+        verdict_headline=res.get("verdict_headline"),
+        detailed_report=res.get("detailed_report"),
         checklist=checklist_items,
-        requires_rework=bool(res.get("requires_rework", False)),
-        manager_recommendation=res.get("manager_recommendation", "Approve & Close Ticket"),
-        model_used=res.get("model_used", "gemini-3.5-flash-lite")
+        requires_rework=res.get("requires_rework"),
+        manager_recommendation=res.get("manager_recommendation"),
+        model_used=res.get("model_used"),
     )
 
 @router.get("/model-info")
@@ -203,7 +209,10 @@ def get_model_info():
         with open(REPORT_JSON_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     return {
-        "status": "Evaluation report pending training",
+        "status": "unavailable",
+        "message": "Evaluation report has not been generated yet. Run backend/ml/train.py to generate it.",
+        "dataset": None,
+        "metrics": None,
         "model_architecture": {
             "vectorizer": "TF-IDF (ngram_range=(1,2), sublinear_tf=True)",
             "classifier": "LogisticRegression (balanced class weights)"

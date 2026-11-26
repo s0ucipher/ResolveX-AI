@@ -1,6 +1,16 @@
 import datetime
 from typing import List, Optional, Dict
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_serializer
+
+
+def _serialize_utc(dt: Optional[datetime.datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    else:
+        dt = dt.astimezone(datetime.timezone.utc)
+    return dt.isoformat()
 
 # --- User Schemas ---
 
@@ -23,6 +33,10 @@ class UserOut(UserBase):
     firebase_uid: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, dt: datetime.datetime) -> Optional[str]:
+        return _serialize_utc(dt)
 
 class FirebaseSyncRequest(BaseModel):
     name: Optional[str] = None
@@ -53,6 +67,10 @@ class StatusHistoryOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("created_at")
+    def serialize_created_at(self, dt: datetime.datetime) -> Optional[str]:
+        return _serialize_utc(dt)
+
 # --- Complaint Schemas ---
 
 class ComplaintCreate(BaseModel):
@@ -66,6 +84,7 @@ class ComplaintCreate(BaseModel):
     user_email: Optional[EmailStr] = None
     photo_url: Optional[str] = None
     photo_analysis: Optional[str] = None
+    idempotency_key: Optional[str] = Field(None, max_length=64)
 
 class StatusUpdate(BaseModel):
     status: str
@@ -119,6 +138,7 @@ class ComplaintOut(BaseModel):
     resolution_notes: Optional[str] = None
     photo_url: Optional[str] = None
     photo_analysis: Optional[str] = None
+    idempotency_key: Optional[str] = Field(None, max_length=64)
     resolution_photo_url: Optional[str] = None
     resolution_quality_status: Optional[str] = None
     resolution_quality_report: Optional[str] = None
@@ -129,6 +149,10 @@ class ComplaintOut(BaseModel):
     history: List[StatusHistoryOut] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at", "updated_at", "resolved_at")
+    def serialize_datetimes(self, dt: Optional[datetime.datetime]) -> Optional[str]:
+        return _serialize_utc(dt)
 
 # --- AI Prediction Schemas ---
 
@@ -182,14 +206,16 @@ class PhotoAnalysisRequest(BaseModel):
     user_notes: Optional[str] = None
 
 class PhotoAnalysisResponse(BaseModel):
-    suggested_title: str
-    simple_report: str
-    suggested_department: str
-    suggested_priority: str
-    is_safety_hazard: bool
-    detected_hazards: List[str]
-    recommended_action: str
-    model_used: str
+    analysis_status: str = "completed"  # completed, unavailable, malformed
+    error_message: Optional[str] = None
+    suggested_title: Optional[str] = None
+    simple_report: Optional[str] = None
+    suggested_department: Optional[str] = None
+    suggested_priority: Optional[str] = None
+    is_safety_hazard: Optional[bool] = None
+    detected_hazards: List[str] = []
+    recommended_action: Optional[str] = None
+    model_used: Optional[str] = None
 
 class WorkVerificationChecklistItem(BaseModel):
     item: str
@@ -204,14 +230,16 @@ class WorkVerificationRequest(BaseModel):
     worker_notes: Optional[str] = None
 
 class WorkVerificationResponse(BaseModel):
-    verdict: str  # PROPERLY_DONE or BADLY_DONE
-    quality_score: int  # 0 to 100
-    verdict_headline: str
-    detailed_report: str
-    checklist: List[WorkVerificationChecklistItem]
-    requires_rework: bool
-    manager_recommendation: str
-    model_used: str
+    verification_status: str = "completed"  # completed, unavailable, malformed
+    error_message: Optional[str] = None
+    verdict: Optional[str] = None  # PROPERLY_DONE or BADLY_DONE
+    quality_score: Optional[int] = None  # 0 to 100
+    verdict_headline: Optional[str] = None
+    detailed_report: Optional[str] = None
+    checklist: List[WorkVerificationChecklistItem] = []
+    requires_rework: Optional[bool] = None
+    manager_recommendation: Optional[str] = None
+    model_used: Optional[str] = None
 
 class ResolutionSubmissionRequest(BaseModel):
     status: str = "Resolved"
@@ -219,6 +247,7 @@ class ResolutionSubmissionRequest(BaseModel):
     resolution_photo_base64: Optional[str] = None
     mime_type: Optional[str] = "image/jpeg"
     run_gemini_verification: bool = True
+    manual_signoff: bool = False
 
 class ScannedReportRequest(BaseModel):
     raw_text: str = Field(..., min_length=10, description="Raw OCR or scanned report text")

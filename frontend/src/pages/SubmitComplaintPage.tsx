@@ -25,6 +25,11 @@ import {
   Trash2
 } from 'lucide-react';
 import { api } from '../services/api';
+import {
+  getLegacyLocalDrafts,
+  dismissLegacyLocalDraft,
+  LegacyLocalDraft
+} from '../services/localFallback';
 import { useAuth } from '../context/AuthContext';
 import { useComplaints } from '../context/ComplaintsContext';
 import { useDisplayMode } from '../context/DisplayModeContext';
@@ -49,6 +54,18 @@ const CAMPUS_LOCATIONS = [
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `idem-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getDraftStorageKey(email?: string | null): string {
+  const clean = (email || '').trim().toLowerCase();
+  return clean ? `complainai_unsent_draft_${clean}` : 'complainai_unsent_draft_guest';
+}
+
 export const SubmitComplaintPage: React.FC = () => {
   const { user } = useAuth();
   const { addSubmittedComplaint } = useComplaints();
@@ -65,6 +82,33 @@ export const SubmitComplaintPage: React.FC = () => {
   const [affectedCount, setAffectedCount] = useState<string>('');
   const [durationDays, setDurationDays] = useState<string>('');
   const [userEmail, setUserEmail] = useState(user?.email || '');
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateIdempotencyKey());
+  const [hasUnsentDraft, setHasUnsentDraft] = useState(false);
+  const [legacyDrafts, setLegacyDrafts] = useState<LegacyLocalDraft[]>(() => getLegacyLocalDrafts(user?.email));
+
+  // Restore any saved unsent draft for the current user
+  useEffect(() => {
+    setLegacyDrafts(getLegacyLocalDrafts(user?.email));
+    try {
+      const raw = localStorage.getItem(getDraftStorageKey(user?.email));
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft && (draft.title || draft.description || draft.location)) {
+          setTitle(draft.title || '');
+          setDescription(draft.description || '');
+          setLocation(draft.location || '');
+          setCategory(draft.category || '');
+          setDepartment(draft.department || '');
+          setAffectedCount(draft.affectedCount || '');
+          setDurationDays(draft.durationDays || '');
+          setIdempotencyKey(draft.idempotencyKey || generateIdempotencyKey());
+          setHasUnsentDraft(true);
+        }
+      }
+    } catch {
+      // Ignore invalid draft JSON
+    }
+  }, [user?.email]);
 
   // Automatic Category Prediction State
   const [autoPredictedCategory, setAutoPredictedCategory] = useState<string | null>(null);
@@ -130,8 +174,11 @@ export const SubmitComplaintPage: React.FC = () => {
     if (!scanResult) return;
     setTitle(scanResult.extracted_title);
     setDescription(scanResult.extracted_description);
-    if (scanResult.extracted_location) {
-      setLocation(scanResult.extracted_location);
+    if (scanResult.extracted_location && scanResult.extracted_location.trim()) {
+      setLocation(scanResult.extracted_location.trim());
+    } else {
+      setLocation('');
+      setError('Location was not found in the pasted text. Please enter the campus location manually.');
     }
     if (scanResult.extracted_affected_count) {
       setAffectedCount(String(scanResult.extracted_affected_count));
@@ -193,16 +240,18 @@ export const SubmitComplaintPage: React.FC = () => {
   };
 
   const handleApplyPhotoAnalysis = () => {
-    if (!photoAnalysis) return;
-    if (!title || title.trim().length < 5) {
+    if (!photoAnalysis || photoAnalysis.analysis_status !== 'completed') return;
+    if ((!title || title.trim().length < 5) && photoAnalysis.suggested_title) {
       setTitle(photoAnalysis.suggested_title);
     }
-    if (!description || description.trim().length < 15) {
-      setDescription(photoAnalysis.simple_report);
-    } else {
-      setDescription(prev => `${prev}\n\n[Visual Report]: ${photoAnalysis.simple_report}`);
+    if (photoAnalysis.simple_report) {
+      if (!description || description.trim().length < 15) {
+        setDescription(photoAnalysis.simple_report);
+      } else {
+        setDescription(prev => `${prev}\n\n[Visual Report]: ${photoAnalysis.simple_report}`);
+      }
     }
-    if (photoAnalysis.suggested_department) {
+    if (photoAnalysis.suggested_department && CATEGORIES.includes(photoAnalysis.suggested_department)) {
       setCategory(photoAnalysis.suggested_department);
     }
   };
@@ -394,14 +443,49 @@ export const SubmitComplaintPage: React.FC = () => {
         duration_days: parsedDuration,
         user_email: effectiveEmail || null,
         photo_url: photoBase64 || null,
-        photo_analysis: photoAnalysis ? JSON.stringify(photoAnalysis) : null
+        photo_analysis:
+          photoAnalysis && photoAnalysis.analysis_status === 'completed'
+            ? JSON.stringify(photoAnalysis)
+            : null,
+        idempotency_key: idempotencyKey
       });
+
+      // Clear unsent draft only after server confirms persistence
+      try {
+        localStorage.removeItem(getDraftStorageKey(user?.email));
+      } catch {
+        // Ignore storage errors
+      }
+      setHasUnsentDraft(false);
+      setIdempotencyKey(generateIdempotencyKey());
 
       // Synchronously update shared complaints cache and state
       addSubmittedComplaint(created);
       setSubmittedComplaint(created);
     } catch (err: any) {
-      reportError(err.message || 'Failed to submit complaint. Please check server connectivity and try again.');
+      // Preserve form text as an unsent draft with the same idempotencyKey for safe retry
+      try {
+        localStorage.setItem(
+          getDraftStorageKey(user?.email),
+          JSON.stringify({
+            title,
+            description,
+            location,
+            category,
+            department,
+            affectedCount,
+            durationDays,
+            idempotencyKey,
+            savedAt: new Date().toISOString(),
+          })
+        );
+        setHasUnsentDraft(true);
+      } catch {
+        // Ignore storage errors
+      }
+      reportError(
+        err.message || 'Complaint was NOT submitted. Your text is saved as an unsent draft — please retry.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -434,6 +518,13 @@ export const SubmitComplaintPage: React.FC = () => {
     setLivePrediction(null);
     setSubmittedComplaint(null);
     setError(null);
+    setHasUnsentDraft(false);
+    setIdempotencyKey(generateIdempotencyKey());
+    try {
+      localStorage.removeItem(getDraftStorageKey(user?.email));
+    } catch {
+      // Ignore storage errors
+    }
   };
 
   // SUCCESS SCREEN
@@ -580,7 +671,7 @@ export const SubmitComplaintPage: React.FC = () => {
             </div>
             <div>
               <h3 className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
-                Scanned Maintenance Report Intake
+                Parse Pasted Report Text
               </h3>
               <p className="text-[11px] text-slate-600 dark:text-slate-300">
                 Extract text from scanned slips or maintenance inspection logs to instantly rank Critical Priority.
@@ -708,6 +799,14 @@ export const SubmitComplaintPage: React.FC = () => {
                   </div>
                   <div className="text-[11px] text-slate-600 dark:text-slate-400">
                     {scanResult.reasoning}
+                  </div>
+                  <div className="text-[11px] text-slate-700 dark:text-slate-300 mt-1">
+                    <strong>Extracted Location:</strong>{' '}
+                    {scanResult.extracted_location ? (
+                      <span>{scanResult.extracted_location}</span>
+                    ) : (
+                      <span className="text-amber-700 dark:text-amber-300">Not detected — please enter manually in the form</span>
+                    )}
                   </div>
                 </div>
 
@@ -854,7 +953,24 @@ export const SubmitComplaintPage: React.FC = () => {
                   </div>
                 )}
 
-                {photoAnalysis && !analyzingPhoto && (
+                {photoAnalysis && !analyzingPhoto && photoAnalysis.analysis_status !== 'completed' && (
+                  <div className="p-3.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-500/30 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 text-xs font-semibold">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>
+                        {photoAnalysis.analysis_status === 'malformed'
+                          ? 'AI Photo Analysis Returned Incomplete Output'
+                          : 'AI Photo Analysis Unavailable'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-700 dark:text-amber-200/90">
+                      {photoAnalysis.error_message ||
+                        'Automated vision analysis is currently unavailable. Your photo remains attached for manual administrator inspection.'}
+                    </p>
+                  </div>
+                )}
+
+                {photoAnalysis && !analyzingPhoto && photoAnalysis.analysis_status === 'completed' && (
                   <div className="p-3.5 rounded-xl bg-violet-50/80 dark:bg-[#1E2538] border border-violet-200 dark:border-white/10 space-y-2.5">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-1.5">
@@ -863,9 +979,11 @@ export const SubmitComplaintPage: React.FC = () => {
                           Gemini Vision Inspection Report
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-violet-200/70 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200">
-                        {photoAnalysis.model_used}
-                      </span>
+                      {photoAnalysis.model_used && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-violet-200/70 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200">
+                          {photoAnalysis.model_used}
+                        </span>
+                      )}
                     </div>
 
                     <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-sans bg-white/70 dark:bg-black/30 p-2.5 rounded-lg border border-slate-200/50 dark:border-white/5">
@@ -873,9 +991,15 @@ export const SubmitComplaintPage: React.FC = () => {
                     </p>
 
                     <div className="flex items-center gap-2 flex-wrap text-[11px]">
-                      <span className="text-slate-600 dark:text-slate-400">Department: <strong className="text-primaryViolet dark:text-cyan-300">{photoAnalysis.suggested_department}</strong></span>
-                      <span className="text-slate-400">·</span>
-                      <span className="text-slate-600 dark:text-slate-400">Severity: <strong className="text-rose-600 dark:text-rose-400">{photoAnalysis.suggested_priority}</strong></span>
+                      {photoAnalysis.suggested_department && (
+                        <span className="text-slate-600 dark:text-slate-400">Department: <strong className="text-primaryViolet dark:text-cyan-300">{photoAnalysis.suggested_department}</strong></span>
+                      )}
+                      {photoAnalysis.suggested_department && photoAnalysis.suggested_priority && (
+                        <span className="text-slate-400">·</span>
+                      )}
+                      {photoAnalysis.suggested_priority && (
+                        <span className="text-slate-600 dark:text-slate-400">Severity: <strong className="text-rose-600 dark:text-rose-400">{photoAnalysis.suggested_priority}</strong></span>
+                      )}
                       {photoAnalysis.is_safety_hazard && (
                         <span className="px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-500/30 text-rose-700 dark:text-rose-300 font-bold text-[10px]">
                           Hazard Detected
@@ -1134,6 +1258,70 @@ export const SubmitComplaintPage: React.FC = () => {
             </div>
           )}
 
+          {/* Legacy Browser-Only Drafts Recovery */}
+          {legacyDrafts.length > 0 && (
+            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs space-y-2">
+              <div className="font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Unfiled Browser-Only Drafts Detected (Not Submitted to Server)</span>
+              </div>
+              <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                These older drafts were stored only in your browser and were never assigned a server tracking ID. Recover your text into the form below to submit them properly.
+              </p>
+              <div className="space-y-1.5">
+                {legacyDrafts.map((d) => (
+                  <div key={d.public_id} className="flex items-center justify-between gap-2 bg-white/70 dark:bg-black/20 p-2 rounded-lg border border-amber-200/70 dark:border-amber-500/20">
+                    <div className="truncate">
+                      <span className="font-mono text-[10px] mr-2 opacity-75">[{d.public_id} — local draft]</span>
+                      <span className="font-medium">{d.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTitle(d.title);
+                          setDescription(d.description);
+                          setLocation(d.location);
+                          if (d.category) setCategory(d.category);
+                          setIdempotencyKey(generateIdempotencyKey());
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-medium cursor-pointer"
+                      >
+                        Recover Text
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          dismissLegacyLocalDraft(d.public_id);
+                          setLegacyDrafts(getLegacyLocalDrafts(user?.email));
+                        }}
+                        className="px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-500/40 text-[11px] cursor-pointer"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Unsent Draft Notice */}
+          {hasUnsentDraft && !error && (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-200 text-xs flex items-center justify-between gap-3">
+              <div>
+                <strong>Unsent Draft Restored:</strong> Your previous complaint text was preserved locally and has not been submitted yet.
+              </div>
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-500/40 text-[11px] font-medium shrink-0 cursor-pointer"
+              >
+                Discard Draft
+              </button>
+            </div>
+          )}
+
           {/* Action Row Error Display */}
           {error && (
             <div
@@ -1141,9 +1329,30 @@ export const SubmitComplaintPage: React.FC = () => {
               className="p-4 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-3 font-medium animate-in fade-in duration-200"
             >
               <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-              <div className="space-y-0.5 flex-1">
-                <div className="font-medium text-rose-800 dark:text-rose-200">Submission Notice</div>
+              <div className="space-y-2 flex-1">
+                <div className="font-medium text-rose-800 dark:text-rose-200">
+                  {hasUnsentDraft ? 'Not Submitted — Saved as Unsent Draft' : 'Submission Notice'}
+                </div>
                 <div className="leading-relaxed">{error}</div>
+                {hasUnsentDraft && (
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Retry Submission</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetForm}
+                      className="px-3 py-1.5 rounded-lg border border-rose-300 dark:border-rose-500/40 text-[11px] font-medium cursor-pointer"
+                    >
+                      Discard Draft
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}

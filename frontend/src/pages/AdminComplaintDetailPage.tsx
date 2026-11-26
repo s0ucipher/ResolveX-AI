@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { formatDateTime } from '../utils/dateTime';
 import {
   ArrowLeft,
   Sparkles,
@@ -111,6 +112,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
   const [complaint, setComplaint] = useState<Complaint | null>(null);
   const [history, setHistory] = useState<StatusHistory[]>([]);
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[]>([]);
+  const [duplicatesError, setDuplicatesError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [refreshingHistory, setRefreshingHistory] = useState(false);
@@ -159,8 +161,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
     reader.onload = (event) => {
       const b64 = event.target?.result as string;
       setResolutionPhotoBase64(b64);
-      // Auto-trigger Gemini quality assessment
-      handleRunGeminiVerification(b64, file.type);
+      setWorkVerificationResult(null);
     };
     reader.readAsDataURL(file);
   };
@@ -195,16 +196,25 @@ export const AdminComplaintDetailPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [data, histList, dupList] = await Promise.all([
+      setDuplicatesError(null);
+      const [data, histList, dupRes] = await Promise.all([
         api.getComplaint(publicId),
         api.getComplaintHistory(publicId).catch(() => []),
-        api.getDuplicates(publicId).catch(() => [])
+        api.getDuplicates(publicId).then(
+          (list) => ({ ok: true as const, list }),
+          (err: any) => ({ ok: false as const, error: err?.message || 'Could not check for duplicate complaints.' })
+        )
       ]);
       setComplaint(data);
       setAssignedDept(data.assigned_department || '');
       setSelectedCategory(data.category);
       setSelectedPriority(data.final_priority);
-      setDuplicates(dupList || []);
+      if (dupRes.ok) {
+        setDuplicates(dupRes.list || []);
+      } else {
+        setDuplicates([]);
+        setDuplicatesError(dupRes.error);
+      }
 
       const mergedHistory = histList && histList.length > 0 ? histList : (data.history || []);
       setHistory(mergedHistory);
@@ -371,7 +381,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
           resolution_notes: fullResolutionText,
           resolution_photo_base64: resolutionPhotoBase64,
           mime_type: resolutionPhotoMime,
-          run_gemini_verification: true
+          run_gemini_verification: !workVerificationResult
         });
       } else {
         updated = await api.updateStatus(complaint.public_id, {
@@ -762,7 +772,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
               <span>•</span>
               <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                 <Clock className="w-3.5 h-3.5" />
-                Lodged: {new Date(complaint.created_at).toLocaleString()}
+                Lodged: {formatDateTime(complaint.created_at)}
               </span>
               {complaint.user_email && (
                 <>
@@ -990,7 +1000,19 @@ export const AdminComplaintDetailPage: React.FC = () => {
           </div>
 
           {/* Potential Duplicate Suggestions */}
-          {duplicates.length > 0 && (
+          {duplicatesError && (
+            <div className="bg-rose-50 dark:bg-rose-950/30 rounded-2xl border border-rose-200 dark:border-rose-500/40 p-5 space-y-1.5">
+              <div className="flex items-center gap-2 text-rose-800 dark:text-rose-200 font-medium text-sm">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Duplicate Check Unavailable</span>
+              </div>
+              <p className="text-xs text-rose-700 dark:text-rose-300">
+                Could not check for similar complaints: {duplicatesError}
+              </p>
+            </div>
+          )}
+
+          {!duplicatesError && duplicates.length > 0 && (
             <div className="bg-[#FFF4E8] dark:bg-[#222A35] rounded-2xl border border-amber-200 dark:border-amber-500/30   p-6 space-y-4">
               <div className="flex items-center gap-2 text-amber-800 dark:text-darkAmber font-medium text-sm">
                 <Layers className="w-4 h-4 text-amber-600 dark:text-darkAmber" />
@@ -1061,7 +1083,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
                     </span>
                     <span className="text-slate-300 dark:text-slate-700">•</span>
                     <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                      {new Date(h.created_at).toLocaleString()}
+                      {formatDateTime(h.created_at)}
                     </span>
                     <span className="text-slate-300 dark:text-slate-700">•</span>
                     <span className="text-primaryViolet dark:text-darkCyan font-medium text-[11px]">
@@ -1374,7 +1396,21 @@ export const AdminComplaintDetailPage: React.FC = () => {
                         </div>
                       )}
 
-                      {workVerificationResult && !verifyingWork && (
+                      {workVerificationResult && !verifyingWork && workVerificationResult.verification_status !== 'completed' && (
+                        <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-500/40 bg-amber-50/80 dark:bg-amber-950/25 text-xs space-y-1.5">
+                          <div className="font-semibold text-amber-800 dark:text-amber-200">
+                            {workVerificationResult.verification_status === 'malformed'
+                              ? 'Automated QA Returned Incomplete Output'
+                              : 'Automated QA Unavailable'}
+                          </div>
+                          <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                            {workVerificationResult.error_message ||
+                              'Automated quality verification is unavailable. Photo remains attached for explicit manual administrator sign-off.'}
+                          </p>
+                        </div>
+                      )}
+
+                      {workVerificationResult && !verifyingWork && workVerificationResult.verification_status === 'completed' && (
                         <div className={`p-3 rounded-xl border text-xs space-y-2 ${
                           workVerificationResult.verdict === 'PROPERLY_DONE'
                             ? 'bg-emerald-50/80 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-500/40'
@@ -1455,7 +1491,7 @@ export const AdminComplaintDetailPage: React.FC = () => {
                   </p>
                   {complaint.resolved_at && (
                     <div className="text-[10px] text-emerald-700 dark:text-darkMint font-mono font-medium">
-                      Completed: {new Date(complaint.resolved_at).toLocaleString()}
+                      Completed: {formatDateTime(complaint.resolved_at)}
                     </div>
                   )}
                 </div>

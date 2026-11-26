@@ -1,16 +1,33 @@
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+# Load environment variables before reading DATABASE_URL
+_ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(dotenv_path=_ROOT_DIR / ".env")
+load_dotenv(dotenv_path=_ROOT_DIR / "backend" / ".env")
+
 DATABASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def normalize_database_url(raw_url: str) -> str:
+    """
+    Normalize PostgreSQL URLs to explicitly use the installed psycopg2 driver
+    so SQLAlchemy 2.x does not attempt to import psycopg v3.
+    """
+    url = (raw_url or "").strip()
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return url
+
+
 default_sqlite = "complainai.db" if os.path.exists(os.path.join(DATABASE_DIR, "complainai.db")) else "resolvex.db"
 raw_database_url = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(DATABASE_DIR, default_sqlite)}")
-
-# Fix Render/Heroku postgres:// scheme for SQLAlchemy 1.4+ and 2.0+
-if raw_database_url.startswith("postgres://"):
-    DATABASE_URL = raw_database_url.replace("postgres://", "postgresql://", 1)
-else:
-    DATABASE_URL = raw_database_url
+DATABASE_URL = normalize_database_url(raw_database_url)
 
 # Configure database engine based on dialect (SQLite for local dev, PostgreSQL for production)
 if DATABASE_URL.startswith("sqlite"):

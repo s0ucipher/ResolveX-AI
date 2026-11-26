@@ -120,6 +120,10 @@ export function AdminDashboardPage() {
     };
   }, [revision]);
   useEffect(() => {
+    setPage(1);
+  }, [query, category, priority, status, tab]);
+
+  useEffect(() => {
     const id = ++requestId.current;
     setLoading(true);
     setError('');
@@ -129,7 +133,8 @@ export function AdminDashboardPage() {
         category: category || undefined,
         priority: tab === 'critical' ? 'Critical' : priority || undefined,
         status: status || undefined,
-        limit: 100,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
       })
       .then((result) => {
         if (id === requestId.current) {
@@ -138,10 +143,13 @@ export function AdminDashboardPage() {
         }
       })
       .catch((err) => {
-        if (id === requestId.current)
+        if (id === requestId.current) {
+          setComplaints([]);
+          setTotal(0);
           setError(
             err instanceof Error ? err.message : 'Reports could not be loaded.'
           );
+        }
       })
       .finally(() => {
         if (id === requestId.current) setLoading(false);
@@ -149,11 +157,9 @@ export function AdminDashboardPage() {
     return () => {
       requestId.current++;
     };
-  }, [query, category, priority, status, tab, revision]);
-  const currentPage = Math.min(
-    page,
-    Math.max(1, Math.ceil(complaints.length / PAGE_SIZE))
-  );
+  }, [query, category, priority, status, tab, page, revision]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
   const clearFilters = () => {
     setDraft('');
     setQuery('');
@@ -465,26 +471,17 @@ export function AdminDashboardPage() {
               </div>
             )}
             <ComplaintTable
-              items={complaints.slice(
-                (currentPage - 1) * PAGE_SIZE,
-                currentPage * PAGE_SIZE
-              )}
+              items={complaints}
               loading={loading}
               filtered={hasFilters}
               admin
             />
             <Pagination
               page={currentPage}
-              total={complaints.length}
+              total={total}
               pageSize={PAGE_SIZE}
               onChange={setPage}
             />
-            {total > complaints.length && (
-              <p className="chart-caption">
-                Showing the first {complaints.length} of {total} matching
-                reports. Narrow the search to find a specific report.
-              </p>
-            )}
           </>
         ) : (
           <div className="panel-body">

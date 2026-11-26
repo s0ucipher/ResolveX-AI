@@ -62,7 +62,7 @@ def list_admin_complaints(
         q = q.filter(Complaint.assigned_department == department.strip())
 
     total = q.count()
-    items = q.order_by(Complaint.created_at.desc()).offset(offset).limit(limit).all()
+    items = q.order_by(Complaint.created_at.desc(), Complaint.id.desc()).offset(offset).limit(limit).all()
 
     return {
         "total": total,
@@ -111,7 +111,7 @@ def verify_and_resolve_complaint(
             clean_str = payload.resolution_photo_base64.strip()
             mime = payload.mime_type or "image/jpeg"
             if "," in clean_str and "base64" in clean_str:
-                header, b64data = clean_str.split(",", 1)
+                _, b64data = clean_str.split(",", 1)
                 img_bytes = base64.b64decode(b64data)
             else:
                 img_bytes = base64.b64decode(clean_str)
@@ -125,25 +125,50 @@ def verify_and_resolve_complaint(
             )
         except Exception as e:
             print(f"[Gemini Verification Error] {e}")
+            gemini_result = {"verification_status": "unavailable", "error_message": str(e)}
 
-    # Update complaint resolution fields
+    # Update complaint resolution fields inside the same transaction as status transition
     complaint.resolution_notes = payload.resolution_notes
     if payload.resolution_photo_base64:
         complaint.resolution_photo_url = payload.resolution_photo_base64
-    if gemini_result:
-        complaint.resolution_quality_status = gemini_result.get("verdict", "PROPERLY_DONE")
-        complaint.resolution_quality_report = gemini_result.get("detailed_report", "")
-        complaint.resolution_quality_score = int(gemini_result.get("quality_score", 80))
 
-    note_text = f"Work resolution submitted by Admin/Worker ({admin.name})."
-    if gemini_result:
-        note_text += f" Gemini QA Verdict: {gemini_result.get('verdict')} (Score: {gemini_result.get('quality_score')}/100) - {gemini_result.get('verdict_headline')}."
+    is_ai_completed = bool(gemini_result and gemini_result.get("verification_status") == "completed")
+    if is_ai_completed:
+        complaint.resolution_quality_status = gemini_result.get("verdict")
+        complaint.resolution_quality_report = gemini_result.get("detailed_report")
+        complaint.resolution_quality_score = (
+            int(gemini_result["quality_score"]) if gemini_result.get("quality_score") is not None else None
+        )
+    elif payload.resolution_photo_base64:
+        complaint.resolution_quality_status = "MANUAL_REVIEW_ONLY"
+        complaint.resolution_quality_score = None
+        if gemini_result and gemini_result.get("error_message"):
+            complaint.resolution_quality_report = (
+                f"Automated verification {gemini_result.get('verification_status', 'unavailable')}: "
+                f"{gemini_result.get('error_message')}. Signed off manually by Admin ({admin.name})."
+            )
+        else:
+            complaint.resolution_quality_report = f"Manual inspection and sign-off by Admin ({admin.name})."
+    else:
+        complaint.resolution_quality_status = None
+        complaint.resolution_quality_score = None
+        complaint.resolution_quality_report = None
+
+    note_text = f"Resolution signed off by Admin ({admin.name})."
+    if is_ai_completed:
+        note_text += (
+            f" Gemini QA Verdict: {gemini_result.get('verdict')} "
+            f"(Score: {gemini_result.get('quality_score')}/100) - {gemini_result.get('verdict_headline')}."
+        )
+    elif payload.resolution_photo_base64:
+        note_text += " Photo attached; manual administrator review recorded (no automated AI score)."
 
     updated = transition_complaint_status(
         complaint=complaint,
         new_status=payload.status,
         changed_by=f"Admin ({admin.name})",
         note=note_text,
+        rejection_reason=payload.rejection_reason if hasattr(payload, "rejection_reason") else None,
         resolution_notes=payload.resolution_notes,
         db=db
     )

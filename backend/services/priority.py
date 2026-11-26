@@ -1,9 +1,11 @@
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 CRITICAL_SAFETY_KEYWORDS = [
-    "sparking", "live wire", "bare wire", "electrocution", "electric shock",
-    "fire hazard", "smoke", "gas leak", "chemical spill", "toxic", "ceiling collapse",
+    "sparking", "sparks", "live wire", "bare wire", "exposed wire",
+    "electrocution", "electric shock", "short circuit",
+    "fire hazard", "on fire", "flames", "burning", "smoke",
+    "gas leak", "chemical spill", "toxic", "ceiling collapse",
     "ceiling falling", "explosion", "biohazard", "padlocked emergency exit",
     "locked fire exit", "structural collapse", "sewage backup"
 ]
@@ -30,6 +32,38 @@ URGENT_INDICATORS = [
     "repeatedly", "repeated issue", "critical", "danger", "hazardous"
 ]
 
+_NEGATION_RE = re.compile(
+    r"\b(?:no|not|never|without|neither|nor|none|nothing|free\s+of|stopped|resolved|cleared)\b",
+    re.IGNORECASE,
+)
+_CLAUSE_SPLIT_RE = re.compile(r"[.,;!\?\n]+|\b(?:but|however|although|yet|though|while)\b", re.IGNORECASE)
+
+
+def _split_clauses(text: str) -> List[str]:
+    return [c.strip() for c in _CLAUSE_SPLIT_RE.split(text or "") if c.strip()]
+
+
+def _find_asserted_keyword(clauses: List[str], keywords: List[str]) -> Tuple[Optional[str], List[str]]:
+    """
+    Returns (first_asserted_keyword, negated_keywords_seen).
+    A keyword is considered negated if a negation cue appears earlier in the
+    same clause (within the preceding 6 words).
+    """
+    negated_seen: List[str] = []
+    for clause in clauses:
+        for kw in keywords:
+            pattern = re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE)
+            for match in pattern.finditer(clause):
+                prefix = clause[: match.start()].strip()
+                prefix_tail = " ".join(prefix.split()[-6:])
+                if prefix_tail and _NEGATION_RE.search(prefix_tail):
+                    if kw not in negated_seen:
+                        negated_seen.append(kw)
+                else:
+                    return kw, negated_seen
+    return None, negated_seen
+
+
 def calculate_priority(
     title: str,
     description: str,
@@ -38,55 +72,47 @@ def calculate_priority(
     duration_days: Optional[int] = None
 ) -> Dict:
     combined_text = f"{title} {description} {location or ''}".lower()
-    
+    clauses = _split_clauses(combined_text)
+
     # 1. Safety Risk Scoring (0 - 40 pts)
     safety_score = 0
-    safety_reason = "No acute physical or biological safety hazard detected."
+    safety_reason = "No acute physical or biological safety hazard asserted."
     is_emergency = False
 
-    for kw in CRITICAL_SAFETY_KEYWORDS:
-        if kw in combined_text:
-            safety_score = 40
-            safety_reason = f"Critical safety risk identified: reports '{kw}' requiring immediate emergency intervention."
-            is_emergency = True
-            break
-
-    if not is_emergency:
-        for kw in MODERATE_SAFETY_KEYWORDS:
-            if kw in combined_text:
-                safety_score = 25
-                safety_reason = f"Moderate safety concern identified: mentions '{kw}' which may lead to physical injury or sanitation risk."
-                break
-
-    if safety_score == 0 and any(w in combined_text for w in ["broken", "cracked", "stuck", "smell", "loose"]):
-        safety_score = 10
-        safety_reason = "Minor safety or structural risk indicated."
+    crit_kw, crit_negated = _find_asserted_keyword(clauses, CRITICAL_SAFETY_KEYWORDS)
+    if crit_kw:
+        safety_score = 40
+        safety_reason = f"Critical safety risk identified: asserts '{crit_kw}' requiring immediate emergency intervention."
+        is_emergency = True
+    else:
+        mod_kw, mod_negated = _find_asserted_keyword(clauses, MODERATE_SAFETY_KEYWORDS)
+        if mod_kw:
+            safety_score = 25
+            safety_reason = f"Moderate safety concern identified: asserts '{mod_kw}' which may lead to physical injury or sanitation risk."
+        else:
+            minor_kw, _ = _find_asserted_keyword(clauses, ["broken", "cracked", "stuck", "smell", "loose"])
+            if minor_kw:
+                safety_score = 10
+                safety_reason = f"Minor safety or structural risk indicated ('{minor_kw}')."
+            elif crit_negated or mod_negated:
+                neg_list = ", ".join(crit_negated + mod_negated)
+                safety_reason = f"Hazard terms were negated ({neg_list}); no active safety hazard asserted."
 
     # 2. Service Disruption Severity (0 - 25 pts)
-    disruption_score = 0
-    disruption_reason = "Normal operational issue with low service disruption."
+    disruption_score = 8
+    disruption_reason = "Localized issue affecting individual apparatus or isolated setting (baseline 8 pts)."
 
-    for kw in HIGH_DISRUPTION_KEYWORDS:
-        if kw in combined_text:
-            disruption_score = 24
-            disruption_reason = f"Major operational impact: '{kw}' severely interrupts academic or residential activities."
-            break
-
-    if disruption_score == 0:
-        for kw in MODERATE_DISRUPTION_KEYWORDS:
-            if kw in combined_text:
-                disruption_score = 15
-                disruption_reason = f"Noticeable service impairment: '{kw}' causes daily inconvenience to users."
-                break
-
-    if disruption_score == 0:
-        disruption_score = 8
-        disruption_reason = "Localized issue affecting individual apparatus or isolated setting."
+    high_disrupt_kw, _ = _find_asserted_keyword(clauses, HIGH_DISRUPTION_KEYWORDS)
+    if high_disrupt_kw:
+        disruption_score = 24
+        disruption_reason = f"Major operational impact: '{high_disrupt_kw}' severely interrupts academic or residential activities."
+    else:
+        mod_disrupt_kw, _ = _find_asserted_keyword(clauses, MODERATE_DISRUPTION_KEYWORDS)
+        if mod_disrupt_kw:
+            disruption_score = 15
+            disruption_reason = f"Noticeable service impairment: '{mod_disrupt_kw}' causes daily inconvenience to users."
 
     # 3. People Affected (0 - 20 pts)
-    people_score = 0
-    people_reason = "Individual or localized impact reported."
-
     if affected_count is not None:
         if affected_count >= 100:
             people_score = 20
@@ -101,20 +127,25 @@ def calculate_priority(
             people_score = 4
             people_reason = f"Limited individual impact ({affected_count} person)."
     else:
-        # Contextual inference from public venues
-        if any(w in combined_text for w in ["entire hostel", "academic block", "auditorium", "dining hall", "cafeteria", "library"]):
+        major_venue_kw, _ = _find_asserted_keyword(
+            clauses, ["entire hostel", "academic block", "auditorium", "dining hall", "cafeteria", "library"]
+        )
+        shared_venue_kw, _ = _find_asserted_keyword(
+            clauses, ["classroom", "lab", "washroom", "corridor", "hallway", "floor"]
+        )
+        if major_venue_kw:
             people_score = 14
-            people_reason = "Impacts a major shared campus facility with high daily footfall."
-        elif any(w in combined_text for w in ["classroom", "lab", "washroom", "corridor", "hallway", "floor"]):
+            people_reason = f"Impacts a major shared campus facility ('{major_venue_kw}') with high daily footfall."
+        elif shared_venue_kw:
             people_score = 8
-            people_reason = "Affects a communal room or corridor used by groups of students."
+            people_reason = f"Affects a communal room or corridor ('{shared_venue_kw}') used by groups of students."
         else:
             people_score = 4
-            people_reason = "Isolated room or individual workstation impact."
+            people_reason = "Isolated room or individual workstation impact (baseline 4 pts)."
 
     # 4. Duration & Urgency (0 - 15 pts)
     urgency_score = 0
-    urgency_reason = "Standard resolution timeframe."
+    urgency_reason = ""
 
     if duration_days is not None:
         if duration_days >= 7:
@@ -127,26 +158,38 @@ def calculate_priority(
             urgency_score += 3
             urgency_reason = f"Recent issue reported within {duration_days} day(s)."
 
-    # Keyword urgency boost
-    for kw in URGENT_INDICATORS:
-        if kw in combined_text:
-            urgency_score = min(15, urgency_score + 5)
-            urgency_reason += f" Express urgency flags present ('{kw}')."
-            break
+    urgent_kw, _ = _find_asserted_keyword(clauses, URGENT_INDICATORS)
+    if urgent_kw:
+        urgency_score = min(15, urgency_score + 5)
+        urgency_reason = (urgency_reason + f" Express urgency flag present ('{urgent_kw}').").strip()
 
     if urgency_score == 0:
         urgency_score = 3
-        urgency_reason = "Standard baseline priority timeline."
+        urgency_reason = "Standard baseline priority timeline (baseline 3 pts)."
 
-    calculated_sum = safety_score + disruption_score + people_score + urgency_score
+    base_score = safety_score + disruption_score + people_score + urgency_score
 
-    # Policy Override: immediate acute emergencies enforce a minimum policy score floor of 80 (Critical band)
-    if is_emergency:
-        total_score = min(100, max(82, calculated_sum))
+    factors = [
+        {"factor": "Safety & Hazard Risk", "points": safety_score, "max_points": 40, "reason": safety_reason},
+        {"factor": "Service Disruption", "points": disruption_score, "max_points": 25, "reason": disruption_reason},
+        {"factor": "People Affected", "points": people_score, "max_points": 20, "reason": people_reason},
+        {"factor": "Duration & Urgency", "points": urgency_score, "max_points": 15, "reason": urgency_reason},
+    ]
+
+    # Policy Override: acute emergencies enforce a minimum policy floor of 82 (Critical band)
+    policy_adjustment = 0
+    if is_emergency and base_score < 82:
+        policy_adjustment = 82 - base_score
+        total_score = 82
+        factors.append({
+            "factor": "Emergency Policy Floor Adjustment",
+            "points": policy_adjustment,
+            "max_points": 82,
+            "reason": f"Acute safety hazard policy enforces a minimum score of 82 (base sum {base_score} + {policy_adjustment} adjustment)."
+        })
     else:
-        total_score = min(100, calculated_sum)
+        total_score = min(100, base_score)
 
-    # Determine Priority Band
     if is_emergency or total_score >= 80:
         recommended_priority = "Critical"
     elif total_score >= 60:
@@ -156,31 +199,15 @@ def calculate_priority(
     else:
         recommended_priority = "Low"
 
-    # Formulate Reasoning Summary
-    reasons = []
-    if safety_score >= 25:
-        reasons.append(safety_reason)
-    if disruption_score >= 15:
-        reasons.append(disruption_reason)
-    if people_score >= 10:
-        reasons.append(people_reason)
-    if urgency_score >= 6:
-        reasons.append(urgency_reason)
-
-    if not reasons:
-        reasons.append("Standard priority assigned based on routine operational metrics.")
-
+    breakdown_parts = [f"{f['factor']}: {f['points']} pts" for f in factors if f["points"] > 0]
+    active_reasons = [f["reason"] for f in factors if f["points"] > 0]
     summary_text = (
-        f"{recommended_priority} priority recommended (Score: {total_score}/100). "
-        + " ".join(reasons)
+        f"{recommended_priority} priority recommended (Final Score: {total_score}/100; "
+        f"Base Sum: {base_score}/100"
+        + (f", Policy Adjustment: +{policy_adjustment}" if policy_adjustment > 0 else "")
+        + f"; Breakdown: {', '.join(breakdown_parts)}). "
+        + " ".join(active_reasons)
     )
-
-    factors = [
-        {"factor": "Safety & Hazard Risk", "points": safety_score, "max_points": 40, "reason": safety_reason},
-        {"factor": "Service Disruption", "points": disruption_score, "max_points": 25, "reason": disruption_reason},
-        {"factor": "People Affected", "points": people_score, "max_points": 20, "reason": people_reason},
-        {"factor": "Duration & Urgency", "points": urgency_score, "max_points": 15, "reason": urgency_reason},
-    ]
 
     return {
         "recommended_priority": recommended_priority,

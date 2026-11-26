@@ -1,40 +1,41 @@
 ======================================================================
-COMPLAINAI - MACHINE LEARNING MODEL EVALUATION REPORT
+COMPLAINAI - MACHINE LEARNING MODEL EVALUATION REPORT (GROUPED CV)
 ======================================================================
 
-Dataset Size:       500 samples across 10 categories
-Train/Test Split:   80% Train (400), 20% Test (100) Stratified
-Vectorizer:         TF-IDF (1-2 n-grams, sublinear_tf=True)
-Classifier:         Multinomial Logistic Regression (balanced weights)
+Dataset Type:       Synthetic (data/synthetic_complaints.csv)
+Dataset Size:       500 samples, 100 template groups, 10 classes
+Split Method:       5-fold StratifiedGroupKFold (grouped by template_group, seed=42)
+scikit-learn:       1.9.1
+Note:               Real campus performance is unknown without an independently collected campus dataset.
 
-Overall Accuracy:   99.00%
-Macro F1-Score:     0.9900
-Weighted F1-Score:  0.9900
+Pooled Accuracy:    41.40%
+Macro F1-Score:     0.4052
+Weighted F1-Score:  0.4052
 
 Per-Class Performance:
 ----------------------------------------------------------------------
 Category                               | Prec   | Recall | F1     | Support
 ----------------------------------------------------------------------
-Classroom and laboratory facilities    | 1.000  | 1.000  | 1.000  | 10.0
-Cleanliness and waste management       | 0.909  | 1.000  | 0.952  | 10.0
-Electrical and lighting                | 1.000  | 1.000  | 1.000  | 10.0
-Hostel and accommodation               | 1.000  | 1.000  | 1.000  | 10.0
-Internet and IT services               | 1.000  | 1.000  | 1.000  | 10.0
-Other                                  | 1.000  | 1.000  | 1.000  | 10.0
-Plumbing and sanitation                | 1.000  | 0.900  | 0.947  | 10.0
-Roads and infrastructure               | 1.000  | 1.000  | 1.000  | 10.0
-Safety and security                    | 1.000  | 1.000  | 1.000  | 10.0
-Water supply                           | 1.000  | 1.000  | 1.000  | 10.0
+Classroom and laboratory facilities    | 0.476  | 0.400  | 0.435  | 50
+Cleanliness and waste management       | 0.370  | 0.340  | 0.354  | 50
+Electrical and lighting                | 0.365  | 0.460  | 0.407  | 50
+Hostel and accommodation               | 0.532  | 0.500  | 0.515  | 50
+Internet and IT services               | 0.656  | 0.420  | 0.512  | 50
+Other                                  | 0.375  | 0.240  | 0.293  | 50
+Plumbing and sanitation                | 0.345  | 0.400  | 0.370  | 50
+Roads and infrastructure               | 0.247  | 0.380  | 0.299  | 50
+Safety and security                    | 0.156  | 0.100  | 0.122  | 50
+Water supply                           | 0.634  | 0.900  | 0.744  | 50
 ----------------------------------------------------------------------
 
 Confusion Matrix:
-  [10, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-  [0, 10, 0, 0, 0, 0, 0, 0, 0, 0]
-  [0, 0, 10, 0, 0, 0, 0, 0, 0, 0]
-  [0, 0, 0, 10, 0, 0, 0, 0, 0, 0]
-  [0, 0, 0, 0, 10, 0, 0, 0, 0, 0]
-  [0, 0, 0, 0, 0, 10, 0, 0, 0, 0]
-  [0, 1, 0, 0, 0, 0, 9, 0, 0, 0]
-  [0, 0, 0, 0, 0, 0, 0, 10, 0, 0]
-  [0, 0, 0, 0, 0, 0, 0, 0, 10, 0]
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 10]
+  [20, 3, 7, 4, 0, 2, 4, 9, 1, 0]
+  [1, 17, 1, 3, 0, 2, 7, 12, 5, 2]
+  [6, 1, 23, 0, 2, 1, 4, 10, 3, 0]
+  [0, 6, 0, 25, 0, 2, 7, 2, 4, 4]
+  [1, 1, 11, 3, 21, 7, 1, 0, 5, 0]
+  [8, 6, 5, 7, 6, 12, 2, 2, 2, 0]
+  [5, 2, 1, 0, 0, 0, 20, 4, 0, 18]
+  [1, 6, 9, 1, 0, 0, 6, 19, 7, 1]
+  [0, 4, 6, 4, 3, 6, 2, 19, 5, 1]
+  [0, 0, 0, 0, 0, 0, 5, 0, 0, 45]

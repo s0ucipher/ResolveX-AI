@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 @router.get("/summary", response_model=AnalyticsSummary)
 def get_analytics_summary(db: Session = Depends(get_db)):
     total = db.query(Complaint).count()
-    open_c = db.query(Complaint).filter(Complaint.status.in_(["Submitted", "Under Review", "Assigned"])).count()
+    open_c = db.query(Complaint).filter(Complaint.status.in_(["Submitted", "Under Review", "Assigned", "Reopened"])).count()
     in_prog = db.query(Complaint).filter(Complaint.status == "In Progress").count()
     resolved = db.query(Complaint).filter(Complaint.status == "Resolved").count()
     critical = db.query(Complaint).filter(Complaint.final_priority == "Critical").count()

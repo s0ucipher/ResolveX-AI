@@ -11,6 +11,7 @@ import {
 import { Complaint } from '../types';
 import { PriorityBadge } from './PriorityBadge';
 import { StatusBadge } from './StatusBadge';
+import { formatDate } from '../utils/dateTime';
 import { AnimatedNumber } from './AnimatedNumber';
 import type { LucideIcon } from 'lucide-react';
 
@@ -128,11 +129,7 @@ export function ComplaintTable({
                 <StatusBadge status={item.status} />
               </td>
               <td className="whitespace-nowrap">
-                {new Date(item.created_at).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                })}
+                {formatDate(item.created_at)}
               </td>
               <td>
                 <Link

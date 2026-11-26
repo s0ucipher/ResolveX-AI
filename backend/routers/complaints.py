@@ -3,6 +3,7 @@ import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import Complaint, StatusHistory, ComplaintRelation, User
@@ -62,25 +63,38 @@ def submit_complaint(
     user_id = current_user.id
     user_email = current_user.email
     now = get_utc_now()
+    clean_title = payload.title.strip()
+    clean_description = payload.description.strip()
+    clean_location = payload.location.strip()
+    idem_key = payload.idempotency_key.strip() if payload.idempotency_key and payload.idempotency_key.strip() else None
 
-    # Prevent accidental duplicate creation within a 30-second window
-    recent_cutoff = now - datetime.timedelta(seconds=30)
-    existing_dup = db.query(Complaint).filter(
-        or_(Complaint.user_id == user_id, func.lower(Complaint.user_email) == user_email.lower()),
-        Complaint.title == payload.title.strip(),
-        Complaint.description == payload.description.strip(),
-        Complaint.created_at >= recent_cutoff
-    ).first()
-    if existing_dup:
-        return ComplaintOut.model_validate(existing_dup)
+    def _check_existing_idempotent(existing: Complaint) -> ComplaintOut:
+        if (
+            existing.title == clean_title
+            and existing.description == clean_description
+            and existing.location == clean_location
+        ):
+            return ComplaintOut.model_validate(existing)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Idempotency key already used with different complaint data."
+        )
+
+    if idem_key:
+        existing_idem = db.query(Complaint).filter(
+            Complaint.user_id == user_id,
+            Complaint.idempotency_key == idem_key
+        ).first()
+        if existing_idem:
+            return _check_existing_idempotent(existing_idem)
 
     complaint = Complaint(
         public_id=public_id,
         user_id=user_id,
         user_email=user_email,
-        title=payload.title.strip(),
-        description=payload.description.strip(),
-        location=payload.location.strip(),
+        title=clean_title,
+        description=clean_description,
+        location=clean_location,
         category=assigned_category,
         predicted_category=predicted_category,
         classification_confidence=confidence,
@@ -92,47 +106,67 @@ def submit_complaint(
         status="Submitted",
         photo_url=payload.photo_url,
         photo_analysis=payload.photo_analysis,
+        idempotency_key=idem_key,
         created_at=now,
         updated_at=now
     )
-    db.add(complaint)
-    db.commit()
-    db.refresh(complaint)
+    try:
+        db.add(complaint)
+        db.flush()
 
-    # 5. Add Initial Status History Entry
-    history = StatusHistory(
-        complaint_id=complaint.id,
-        previous_status=None,
-        new_status="Submitted",
-        note=f"Complaint lodged by {current_user.name} ({current_user.email}). AI Category: '{predicted_category}' ({confidence*100:.1f}% confidence). Priority: '{predicted_priority}'.",
-        changed_by=current_user.name,
-        created_at=now
-    )
-    db.add(history)
-
-    # 6. Check for Potential Duplicates and Link Relations
-    dup_candidates = find_potential_duplicates(
-        target_id=complaint.id,
-        title=complaint.title,
-        description=complaint.description,
-        category=complaint.category,
-        location=complaint.location,
-        db=db,
-        similarity_threshold=0.55
-    )
-    for dup in dup_candidates:
-        rel = ComplaintRelation(
+        # 5. Add Initial Status History Entry (same transaction)
+        history = StatusHistory(
             complaint_id=complaint.id,
-            related_complaint_id=dup["complaint_id"],
-            relationship_type="duplicate_candidate",
-            similarity_score=dup["similarity_score"],
-            review_status="pending",
+            previous_status=None,
+            new_status="Submitted",
+            note=f"Complaint lodged by {current_user.name} ({current_user.email}). AI Category: '{predicted_category}' ({confidence*100:.1f}% confidence). Priority: '{predicted_priority}'.",
+            changed_by=current_user.name,
             created_at=now
         )
-        db.add(rel)
+        db.add(history)
 
-    db.commit()
-    db.refresh(complaint)
+        # 6. Check for Potential Duplicates and Link Relations (same transaction)
+        dup_candidates = find_potential_duplicates(
+            target_id=complaint.id,
+            title=complaint.title,
+            description=complaint.description,
+            category=complaint.category,
+            location=complaint.location,
+            db=db,
+            similarity_threshold=0.55
+        )
+        for dup in dup_candidates:
+            rel = ComplaintRelation(
+                complaint_id=complaint.id,
+                related_complaint_id=dup["complaint_id"],
+                relationship_type="duplicate_candidate",
+                similarity_score=dup["similarity_score"],
+                review_status="pending",
+                created_at=now
+            )
+            db.add(rel)
+
+        db.commit()
+        db.refresh(complaint)
+    except IntegrityError:
+        db.rollback()
+        if idem_key:
+            existing_idem = db.query(Complaint).filter(
+                Complaint.user_id == user_id,
+                Complaint.idempotency_key == idem_key
+            ).first()
+            if existing_idem:
+                return _check_existing_idempotent(existing_idem)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Duplicate submission conflict. Please retry."
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise
 
     return ComplaintOut.model_validate(complaint)
 

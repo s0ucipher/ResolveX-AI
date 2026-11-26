@@ -153,14 +153,16 @@ export const STATUS_LIST = [
 ];
 
 export interface PhotoAnalysisResult {
-  suggested_title: string;
-  simple_report: string;
-  suggested_department: string;
-  suggested_priority: 'Critical' | 'High' | 'Medium' | 'Low';
-  is_safety_hazard: boolean;
+  analysis_status: 'completed' | 'unavailable' | 'malformed' | string;
+  error_message?: string | null;
+  suggested_title?: string | null;
+  simple_report?: string | null;
+  suggested_department?: string | null;
+  suggested_priority?: 'Critical' | 'High' | 'Medium' | 'Low' | null;
+  is_safety_hazard?: boolean | null;
   detected_hazards: string[];
-  recommended_action: string;
-  model_used: string;
+  recommended_action?: string | null;
+  model_used?: string | null;
 }
 
 export interface WorkVerificationChecklistItem {
@@ -170,13 +172,15 @@ export interface WorkVerificationChecklistItem {
 }
 
 export interface WorkVerificationResult {
-  verdict: 'PROPERLY_DONE' | 'BADLY_DONE';
-  quality_score: number;
-  verdict_headline: string;
-  detailed_report: string;
+  verification_status: 'completed' | 'unavailable' | 'malformed' | string;
+  error_message?: string | null;
+  verdict?: 'PROPERLY_DONE' | 'BADLY_DONE' | null;
+  quality_score?: number | null;
+  verdict_headline?: string | null;
+  detailed_report?: string | null;
   checklist: WorkVerificationChecklistItem[];
-  requires_rework: boolean;
-  manager_recommendation: string;
-  model_used: string;
+  requires_rework?: boolean | null;
+  manager_recommendation?: string | null;
+  model_used?: string | null;
 }
 
