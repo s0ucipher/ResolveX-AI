@@ -47,7 +47,7 @@ function saveCachedComplaints(complaints: Complaint[], userEmail?: string | null
 function computeStats(list: Complaint[]): ComplaintStats {
   return {
     total: list.length,
-    openCount: list.filter(c => ['Submitted', 'Under Review', 'Assigned'].includes(c.status)).length,
+    openCount: list.filter(c => ['Submitted', 'Under Review', 'Assigned', 'Reopened'].includes(c.status)).length,
     inProgressCount: list.filter(c => c.status === 'In Progress').length,
     resolvedCount: list.filter(c => c.status === 'Resolved').length,
   };
@@ -55,15 +55,22 @@ function computeStats(list: Complaint[]): ComplaintStats {
 
 export const ComplaintsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [complaints, setComplaints] = useState<Complaint[]>(() => loadCachedComplaints(user?.email));
+  const [complaints, setComplaints] = useState<Complaint[]>(() =>
+    user ? loadCachedComplaints(user.email) : []
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // When user changes, immediately load their cached complaints so dashboard displays without lag
+  // When user changes or logs out, clear previous user's private state immediately
   useEffect(() => {
-    const cached = loadCachedComplaints(user?.email);
+    if (!user) {
+      setComplaints([]);
+      setError(null);
+      return;
+    }
+    const cached = loadCachedComplaints(user.email);
     setComplaints(cached);
-  }, [user?.email]);
+  }, [user]);
 
   const refreshComplaints = useCallback(async (): Promise<Complaint[]> => {
     setLoading(true);

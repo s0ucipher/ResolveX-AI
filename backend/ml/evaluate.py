@@ -1,45 +1,45 @@
 """
 Evaluation utility for ComplainAI classification model.
-Loads the serialised model and held-out test data, then computes detailed metrics.
+Runs 5-fold StratifiedGroupKFold grouped by template_group (fitting the
+vectorizer on training folds only) and verifies zero template-family overlap.
 """
 
 import os
 import json
-from backend.ml.train import load_dataset, DATA_PATH, MODEL_PATH, REPORT_JSON_PATH
-import joblib
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
+import numpy as np
+from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.metrics import accuracy_score, f1_score
+
+from backend.ml.train import load_dataset, build_pipeline, DATA_PATH, REPORT_JSON_PATH
+
 
 def evaluate():
-    if not os.path.exists(MODEL_PATH):
-        print(f"Model not found at {MODEL_PATH}. Run train.py first.")
-        return
+    texts, labels, groups = load_dataset(DATA_PATH)
+    cv = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=42)
+    oof_preds = np.empty(len(texts), dtype=object)
 
-    pipeline = joblib.load(MODEL_PATH)
-    texts, labels = load_dataset(DATA_PATH)
+    for fold_idx, (train_idx, test_idx) in enumerate(cv.split(texts, labels, groups), start=1):
+        overlap = set(groups[train_idx].tolist()).intersection(set(groups[test_idx].tolist()))
+        assert not overlap, f"Template group leakage in fold {fold_idx}: {overlap}"
+        fold_pipeline = build_pipeline()
+        fold_pipeline.fit(texts[train_idx], labels[train_idx])
+        oof_preds[test_idx] = fold_pipeline.predict(texts[test_idx])
 
-    _, X_test, _, y_test = train_test_split(
-        texts,
-        labels,
-        test_size=0.20,
-        random_state=42,
-        stratify=labels
-    )
+    acc = accuracy_score(labels, oof_preds)
+    macro_f1 = f1_score(labels, oof_preds, average="macro")
 
-    y_pred = pipeline.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
-    macro_f1 = f1_score(y_test, y_pred, average="macro")
-    clf_report = classification_report(y_test, y_pred, output_dict=True)
-
-    print(f"Evaluation Results on Test Set (N={len(X_test)}):")
-    print(f"Accuracy: {acc*100:.2f}%")
+    print(f"5-Fold Grouped CV Results (N={len(texts)}, Groups={len(set(groups.tolist()))}):")
+    print(f"Pooled Accuracy: {acc*100:.2f}%")
     print(f"Macro F1: {macro_f1:.4f}")
-    
-    with open(REPORT_JSON_PATH, "r", encoding="utf-8") as f:
-        stored = json.load(f)
-    print(f"Stored Report Version: {stored.get('dataset', {}).get('total_samples')} samples.")
-    return stored
+
+    if os.path.exists(REPORT_JSON_PATH):
+        with open(REPORT_JSON_PATH, "r", encoding="utf-8") as f:
+            stored = json.load(f)
+        print(f"Stored Report: {stored.get('dataset', {}).get('total_samples')} samples, "
+              f"split={stored.get('dataset', {}).get('split_method')}")
+        return stored
+    return {"metrics": {"accuracy": round(float(acc), 4), "macro_f1": round(float(macro_f1), 4)}}
+
 
 if __name__ == "__main__":
     evaluate()
-

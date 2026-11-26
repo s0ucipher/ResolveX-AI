@@ -1,10 +1,11 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from backend.database import engine, Base
+from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy import text
+from backend.database import engine, Base, SessionLocal
 from backend.routers.auth import router as auth_router
 from backend.routers.complaints import router as complaints_router
 from backend.routers.admin import router as admin_router
@@ -34,20 +35,30 @@ async def lifespan(app: FastAPI):
                     ("resolution_photo_url", "TEXT"),
                     ("resolution_quality_status", "VARCHAR(30)"),
                     ("resolution_quality_report", "TEXT"),
-                    ("resolution_quality_score", "INTEGER")
+                    ("resolution_quality_score", "INTEGER"),
+                    ("idempotency_key", "VARCHAR(64)")
                 ]
                 for col_name, col_type in new_cols:
                     if col_name not in c_cols:
                         conn.execute(text(f"ALTER TABLE complaints ADD COLUMN {col_name} {col_type}"))
                         conn.commit()
+                if "idempotency_key" not in c_cols:
+                    conn.execute(
+                        text(
+                            "CREATE UNIQUE INDEX IF NOT EXISTS uq_complaint_user_idempotency "
+                            "ON complaints (user_id, idempotency_key)"
+                        )
+                    )
+                    conn.commit()
     except Exception as e:
         print(f"[Schema compatibility notice] {e}")
 
-    try:
-        from backend.seed import seed_database
-        seed_database()
-    except Exception as e:
-        print(f"[Database Initialization Notice] {e}")
+    if os.getenv("SEED_DEMO_DATA", "").strip().lower() == "true":
+        try:
+            from backend.seed import seed_database
+            seed_database()
+        except Exception as e:
+            print(f"[Database Initialization Notice] {e}")
     yield
 
 app = FastAPI(
@@ -96,14 +107,32 @@ app.include_router(ai_router)
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])
 def health_check():
-    return {
-        "status": "healthy",
+    db_ok = False
+    db_error = None
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception as exc:
+        db_error = str(exc)
+    finally:
+        db.close()
+
+    classifier_loaded = classifier_service.pipeline is not None
+    overall_ok = db_ok and classifier_loaded
+    payload = {
+        "status": "healthy" if overall_ok else "unhealthy",
         "service": "ComplainAI Backend",
         "version": "1.0.0",
-        "classifier_status": "loaded" if classifier_service.pipeline is not None else "unloaded",
-        "database": "connected",
-        "environment": os.getenv("ENVIRONMENT", "production")
+        "classifier_status": "loaded" if classifier_loaded else "unloaded",
+        "database": "connected" if db_ok else "unavailable",
+        "environment": os.getenv("ENVIRONMENT", "development")
     }
+    if db_error:
+        payload["database_error"] = db_error
+    if not overall_ok:
+        return JSONResponse(status_code=503, content=payload)
+    return payload
 
 # Mount React Production Frontend if built locally (for unified localhost delivery)
 FRONTEND_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist")
@@ -115,9 +144,9 @@ if os.path.exists(FRONTEND_DIST):
 
     @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def serve_frontend(full_path: str):
-        # Don't intercept API routes that 404
-        if full_path.startswith("api/") or full_path == "health":
-            return {"detail": "Not Found"}
+        # Return proper 404 for unknown API or health routes instead of HTTP 200
+        if full_path == "api" or full_path.startswith("api/") or full_path == "health":
+            raise HTTPException(status_code=404, detail="Not Found")
         file_path = os.path.join(FRONTEND_DIST, full_path)
         if full_path and os.path.exists(file_path) and os.path.isfile(file_path):
             return FileResponse(file_path)

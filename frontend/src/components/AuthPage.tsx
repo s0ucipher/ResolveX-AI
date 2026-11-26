@@ -181,6 +181,20 @@ export function AuthPage({
             {success}
           </div>
         )}
+        {admin && register ? (
+          <div className="auth-notice" style={{ marginTop: '1rem' }}>
+            <p style={{ marginBottom: '0.75rem' }}>
+              <strong>Administrator provisioning is server-controlled.</strong>{' '}
+              Public administrator self-registration is disabled. Ask a system
+              administrator to provision your account using{' '}
+              <code>backend/scripts/manage_admin.py</code>, then sign in below.
+            </p>
+            <Link className="button button-primary" to="/admin/login">
+              Go to Administrator Sign In
+              <ArrowUpRight />
+            </Link>
+          </div>
+        ) : (
         <form onSubmit={submit} className="auth-form">
           {register && (
             <label>
@@ -292,6 +306,7 @@ export function AuthPage({
             )}
           </button>
         </form>
+        )}
         {forgot ? (
           <button
             className="auth-switch"
@@ -334,33 +349,31 @@ export function AuthPage({
               ) : (
                 <span aria-hidden="true" style={{ fontWeight: 800 }}>G</span>
               )}
-              {admin
-                ? register
-                  ? 'Register as Admin with Google'
-                  : 'Sign in as Admin with Google'
-                : 'Continue with Google'}
+              {admin ? 'Sign in as Admin with Google' : 'Continue with Google'}
             </button>
-            <div className="auth-demo">
-              <span>Just looking around?</span>
-              <button
-                disabled={Boolean(busy)}
-                onClick={() =>
-                  void run(async () => {
-                    await auth.loginDemo(admin ? 'admin' : 'student');
-                    navigate(destination, { replace: true });
-                  }, 'demo')
-                }
-              >
-                {busy === 'demo'
-                  ? 'Opening workspace…'
-                  : `Explore the ${admin ? 'admin' : 'student'} demo`}
-                <ArrowUpRight />
-              </button>
-              <p>
-                The existing demo uses sample accounts. No personal account
-                needed.
-              </p>
-            </div>
+            {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_LOGIN === 'true') && (
+              <div className="auth-demo">
+                <span>Local development demo</span>
+                <button
+                  disabled={Boolean(busy)}
+                  onClick={() =>
+                    void run(async () => {
+                      await auth.loginDemo(admin ? 'admin' : 'student');
+                      navigate(destination, { replace: true });
+                    }, 'demo')
+                  }
+                >
+                  {busy === 'demo'
+                    ? 'Signing in…'
+                    : `Sign in as demo ${admin ? 'admin' : 'student'}`}
+                  <ArrowUpRight />
+                </button>
+                <p>
+                  Signs in via the backend using seeded demo credentials
+                  (requires running <code>python -m backend.seed</code> first).
+                </p>
+              </div>
+            )}
           </>
         )}
         <Link className="auth-role-link" to={admin ? '/login' : '/admin/login'}>

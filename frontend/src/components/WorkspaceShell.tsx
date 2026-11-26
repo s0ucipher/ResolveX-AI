@@ -34,7 +34,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     document.addEventListener('keydown', close);
     return () => document.removeEventListener('keydown', close);
   }, []);
-  const adminArea = pathname.startsWith('/admin');
+  const adminArea = isAdmin;
   return (
     <div className="workspace">
       <div className="workspace-mobile-header">

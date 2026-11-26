@@ -22,11 +22,60 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 PREF_MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]
 
+VALID_CATEGORIES = {
+    "Electrical and lighting",
+    "Water supply",
+    "Plumbing and sanitation",
+    "Roads and infrastructure",
+    "Classroom and laboratory facilities",
+    "Internet and IT services",
+    "Hostel and accommodation",
+    "Cleanliness and waste management",
+    "Safety and security",
+    "Other",
+}
+VALID_PRIORITIES = {"Critical", "High", "Medium", "Low"}
+
+
 def get_client():
     if not _GENAI_AVAILABLE:
-        raise RuntimeError("google-genai package is not installed.")
+        return None, "google-genai package is not installed."
     api_key = os.getenv("GEMINI_API_KEY", GEMINI_API_KEY).strip()
-    return genai.Client(api_key=api_key)
+    if not api_key:
+        return None, "GEMINI_API_KEY is not configured."
+    return genai.Client(api_key=api_key), None
+
+
+def _validate_photo_analysis(parsed: Dict[str, Any]) -> Optional[str]:
+    required_str = ("suggested_title", "simple_report", "suggested_department", "suggested_priority")
+    for field in required_str:
+        val = parsed.get(field)
+        if not isinstance(val, str) or not val.strip():
+            return f"Missing or invalid required field '{field}' in provider response."
+    if not isinstance(parsed.get("is_safety_hazard"), bool):
+        return "Missing or invalid boolean field 'is_safety_hazard' in provider response."
+    if parsed.get("suggested_priority") not in VALID_PRIORITIES:
+        return f"Invalid 'suggested_priority' value: {parsed.get('suggested_priority')}"
+    if not isinstance(parsed.get("detected_hazards", []), list):
+        return "Invalid 'detected_hazards' field in provider response."
+    return None
+
+
+def _validate_work_verification(parsed: Dict[str, Any]) -> Optional[str]:
+    if parsed.get("verdict") not in ("PROPERLY_DONE", "BADLY_DONE"):
+        return f"Invalid 'verdict' value: {parsed.get('verdict')}"
+    score = parsed.get("quality_score")
+    if isinstance(score, bool) or not isinstance(score, (int, float)) or not (0 <= int(score) <= 100):
+        return f"Invalid 'quality_score' value: {score}"
+    for field in ("verdict_headline", "detailed_report", "manager_recommendation"):
+        val = parsed.get(field)
+        if not isinstance(val, str) or not val.strip():
+            return f"Missing or invalid required field '{field}' in provider response."
+    if not isinstance(parsed.get("requires_rework"), bool):
+        return "Missing or invalid boolean field 'requires_rework' in provider response."
+    if not isinstance(parsed.get("checklist", []), list):
+        return "Invalid 'checklist' field in provider response."
+    return None
 
 def clean_json_response(raw_text: str) -> Dict[str, Any]:
     text = raw_text.strip()
@@ -58,7 +107,20 @@ class GeminiVisionService:
         Multimodal scan of an issue photo submitted by a student or reporter.
         Produces a simple language report, department suggestion, and priority assessment.
         """
-        client = get_client()
+        client, config_err = get_client()
+        if config_err or client is None:
+            return {
+                "analysis_status": "unavailable",
+                "error_message": config_err or "AI vision provider is not configured.",
+                "suggested_title": None,
+                "simple_report": None,
+                "suggested_department": None,
+                "suggested_priority": None,
+                "is_safety_hazard": None,
+                "detected_hazards": [],
+                "recommended_action": None,
+                "model_used": None,
+            }
         image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
 
         prompt = f"""You are ComplainAI's expert campus facility and maintenance vision inspection AI.
@@ -83,32 +145,59 @@ Respond ONLY with a valid JSON object matching this exact schema:
 """
 
         last_err = None
+        malformed_err = None
         for model_name in PREF_MODELS:
             try:
                 response = client.models.generate_content(
                     model=model_name,
                     contents=[image_part, prompt]
                 )
-                if response and response.text:
+                if not response or not response.text:
+                    malformed_err = f"Model {model_name} returned an empty response."
+                    continue
+                try:
                     parsed = clean_json_response(response.text)
-                    parsed["model_used"] = model_name
-                    return parsed
+                except ValueError as parse_err:
+                    malformed_err = str(parse_err)
+                    continue
+                validation_err = _validate_photo_analysis(parsed)
+                if validation_err:
+                    malformed_err = validation_err
+                    continue
+                parsed["analysis_status"] = "completed"
+                parsed["error_message"] = None
+                parsed["model_used"] = model_name
+                return parsed
             except Exception as e:
                 last_err = e
                 print(f"[Gemini Vision] Model {model_name} failed: {e}")
                 continue
 
-        # Graceful fallback heuristic if Gemini API is unreachable
+        if malformed_err:
+            return {
+                "analysis_status": "malformed",
+                "error_message": malformed_err,
+                "suggested_title": None,
+                "simple_report": None,
+                "suggested_department": None,
+                "suggested_priority": None,
+                "is_safety_hazard": None,
+                "detected_hazards": [],
+                "recommended_action": None,
+                "model_used": None,
+            }
+
         return {
-            "suggested_title": "Reported Facility Issue (Photo Attached)",
-            "simple_report": "Photo received. Visual inspection indicates a facility maintenance issue requiring departmental technician review.",
-            "suggested_department": "Other",
-            "suggested_priority": "Medium",
-            "is_safety_hazard": False,
+            "analysis_status": "unavailable",
+            "error_message": str(last_err) if last_err else "AI vision provider did not respond.",
+            "suggested_title": None,
+            "simple_report": None,
+            "suggested_department": None,
+            "suggested_priority": None,
+            "is_safety_hazard": None,
             "detected_hazards": [],
-            "recommended_action": "Technician physical inspection required.",
-            "model_used": "offline-fallback",
-            "warning": str(last_err) if last_err else None
+            "recommended_action": None,
+            "model_used": None,
         }
 
     def verify_work_completion(
@@ -123,7 +212,20 @@ Respond ONLY with a valid JSON object matching this exact schema:
         Multimodal quality verification of a repair/completion photo submitted by a worker.
         Analyzes whether the work is PROPERLY_DONE or BADLY_DONE / INCOMPLETE.
         """
-        client = get_client()
+        client, config_err = get_client()
+        if config_err or client is None:
+            return {
+                "verification_status": "unavailable",
+                "error_message": config_err or "AI vision provider is not configured.",
+                "verdict": None,
+                "quality_score": None,
+                "verdict_headline": None,
+                "detailed_report": None,
+                "checklist": [],
+                "requires_rework": None,
+                "manager_recommendation": None,
+                "model_used": None,
+            }
         image_part = types.Part.from_bytes(data=resolution_image_bytes, mime_type=mime_type)
 
         prompt = f"""You are ComplainAI's chief quality assurance and facility maintenance auditor.
@@ -157,35 +259,60 @@ Respond ONLY with a valid JSON object matching this exact schema:
 """
 
         last_err = None
+        malformed_err = None
         for model_name in PREF_MODELS:
             try:
                 response = client.models.generate_content(
                     model=model_name,
                     contents=[image_part, prompt]
                 )
-                if response and response.text:
+                if not response or not response.text:
+                    malformed_err = f"Model {model_name} returned an empty response."
+                    continue
+                try:
                     parsed = clean_json_response(response.text)
-                    parsed["model_used"] = model_name
-                    return parsed
+                except ValueError as parse_err:
+                    malformed_err = str(parse_err)
+                    continue
+                validation_err = _validate_work_verification(parsed)
+                if validation_err:
+                    malformed_err = validation_err
+                    continue
+                parsed["quality_score"] = int(parsed["quality_score"])
+                parsed["verification_status"] = "completed"
+                parsed["error_message"] = None
+                parsed["model_used"] = model_name
+                return parsed
             except Exception as e:
                 last_err = e
                 print(f"[Gemini QA] Model {model_name} failed: {e}")
                 continue
 
-        # Graceful fallback heuristic
+        if malformed_err:
+            return {
+                "verification_status": "malformed",
+                "error_message": malformed_err,
+                "verdict": None,
+                "quality_score": None,
+                "verdict_headline": None,
+                "detailed_report": None,
+                "checklist": [],
+                "requires_rework": None,
+                "manager_recommendation": None,
+                "model_used": None,
+            }
+
         return {
-            "verdict": "PROPERLY_DONE",
-            "quality_score": 75,
-            "verdict_headline": "Resolution Photo Logged (Manual Review Recommended)",
-            "detailed_report": "Resolution photo successfully attached. Automated quality assessment offline; campus administrator visual sign-off recommended.",
-            "checklist": [
-                {"item": "Resolution Photo Attached", "passed": True, "note": "Image verified and recorded"},
-                {"item": "Manual Admin Clearance", "passed": True, "note": "Awaiting final admin check"}
-            ],
-            "requires_rework": False,
-            "manager_recommendation": "Approve & Close Ticket",
-            "model_used": "offline-fallback",
-            "warning": str(last_err) if last_err else None
+            "verification_status": "unavailable",
+            "error_message": str(last_err) if last_err else "AI vision provider did not respond.",
+            "verdict": None,
+            "quality_score": None,
+            "verdict_headline": None,
+            "detailed_report": None,
+            "checklist": [],
+            "requires_rework": None,
+            "manager_recommendation": None,
+            "model_used": None,
         }
 
 gemini_vision_service = GeminiVisionService()

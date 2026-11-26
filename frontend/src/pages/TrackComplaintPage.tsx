@@ -22,6 +22,7 @@ import {
   ImageIcon
 } from 'lucide-react';
 import { api } from '../services/api';
+import { formatDateTime } from '../utils/dateTime';
 import { useDisplayMode } from '../context/DisplayModeContext';
 import { Complaint, StatusHistory } from '../types';
 import { PriorityBadge } from '../components/PriorityBadge';
@@ -46,36 +47,56 @@ export const TrackComplaintPage: React.FC = () => {
   const [complaint, setComplaint] = useState<Complaint | null>(null);
   const [history, setHistory] = useState<StatusHistory[]>([]);
   const [copied, setCopied] = useState(false);
+  const requestIdRef = React.useRef(0);
 
   useEffect(() => {
-    if (initialId.trim()) {
-      fetchComplaint(initialId.trim());
-    }
-  }, [initialId]);
-
-  const fetchComplaint = async (id: string) => {
-    if (!id.trim()) return;
-    setError(null);
-    setLoading(true);
-    try {
-      const data = await api.getComplaint(id.trim());
-      setComplaint(data);
-      const hist = await api.getComplaintHistory(id.trim());
-      setHistory(hist);
-    } catch (err: any) {
-      setError(err.message || 'Complaint not found with this tracking ID');
+    const clean = initialId.trim();
+    setTrackingId(clean);
+    if (!clean) {
       setComplaint(null);
       setHistory([]);
-    } finally {
+      setError(null);
       setLoading(false);
+      return;
     }
-  };
+
+    const reqId = ++requestIdRef.current;
+    const controller = new AbortController();
+    setError(null);
+    setLoading(true);
+
+    (async () => {
+      try {
+        const data = await api.getComplaint(clean, controller.signal);
+        if (reqId !== requestIdRef.current) return;
+        const hist = await api.getComplaintHistory(clean, controller.signal);
+        if (reqId !== requestIdRef.current) return;
+        setComplaint(data);
+        setHistory(hist);
+      } catch (err: any) {
+        if (controller.signal.aborted || err?.name === 'AbortError') return;
+        if (reqId !== requestIdRef.current) return;
+        setError(err.message || 'Complaint not found with this tracking ID');
+        setComplaint(null);
+        setHistory([]);
+      } finally {
+        if (reqId === requestIdRef.current) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      controller.abort();
+      requestIdRef.current++;
+    };
+  }, [initialId]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!trackingId.trim()) return;
-    setSearchParams({ id: trackingId.trim().toUpperCase() });
-    fetchComplaint(trackingId.trim());
+    const clean = trackingId.trim().toUpperCase();
+    if (!clean) return;
+    setSearchParams({ id: clean });
   };
 
   const handleCopyLink = () => {
@@ -148,7 +169,6 @@ export const TrackComplaintPage: React.FC = () => {
               onClick={() => {
                 setTrackingId(demoId);
                 setSearchParams({ id: demoId });
-                fetchComplaint(demoId);
               }}
               className="font-mono text-xs px-2.5 py-1 rounded-lg bg-white dark:bg-[#222A35] hover:bg-slate-50 dark:hover:bg-[#1A2029] text-primaryViolet dark:text-darkCyan font-medium border border-slate-200/90 dark:border-white/10 shadow-2xs transition-colors"
             >
@@ -185,7 +205,7 @@ export const TrackComplaintPage: React.FC = () => {
                 <span>•</span>
                 <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                   <Clock className="w-3.5 h-3.5" />
-                  Lodged: {new Date(complaint.created_at).toLocaleString()}
+                  Lodged: {formatDateTime(complaint.created_at)}
                 </span>
               </div>
             </div>
@@ -387,8 +407,8 @@ export const TrackComplaintPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Resolution Note if resolved */}
-            {complaint.resolution_notes && (
+            {/* Resolution Note if currently resolved */}
+            {complaint.status === 'Resolved' && complaint.resolution_notes && (
               <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-mintGreen/15 border border-emerald-200 dark:border-mintGreen/40 text-emerald-800 dark:text-mintGreen space-y-1.5 shadow-2xs">
                 <div className="font-medium text-sm flex items-center gap-2 text-emerald-900 dark:text-mintGreen">
                   <CheckCheck className="w-4 h-4 text-emerald-600 dark:text-mintGreen" />
@@ -397,7 +417,7 @@ export const TrackComplaintPage: React.FC = () => {
                 <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed">{complaint.resolution_notes}</p>
                 {complaint.resolved_at && (
                   <div className="text-[10px] text-emerald-700 dark:text-darkMint pt-1 font-mono font-medium">
-                    Signed off: {new Date(complaint.resolved_at).toLocaleString()}
+                    Signed off: {formatDateTime(complaint.resolved_at)}
                   </div>
                 )}
               </div>
@@ -417,7 +437,7 @@ export const TrackComplaintPage: React.FC = () => {
                     <div className="flex items-center gap-2 flex-wrap font-medium">
                       <span className="font-medium text-[#172337] dark:text-[#F8FAFC]">{h.new_status}</span>
                       <span className="text-slate-300 dark:text-slate-700">•</span>
-                      <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">{new Date(h.created_at).toLocaleString()}</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">{formatDateTime(h.created_at)}</span>
                       <span className="text-slate-300 dark:text-slate-700">•</span>
                       <span className="text-primaryViolet dark:text-darkCyan font-medium text-[11px]">Actor: {h.changed_by}</span>
                     </div>

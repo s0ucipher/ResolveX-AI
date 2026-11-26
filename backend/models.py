@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from backend.database import Base
 
@@ -58,6 +58,11 @@ class Complaint(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow, nullable=False)
     resolved_at = Column(DateTime, nullable=True)
+    idempotency_key = Column(String(64), nullable=True, index=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "idempotency_key", name="uq_complaint_user_idempotency"),
+    )
 
     user = relationship("User", back_populates="complaints")
     history = relationship("StatusHistory", back_populates="complaint", cascade="all, delete-orphan", order_by="StatusHistory.created_at.desc()")

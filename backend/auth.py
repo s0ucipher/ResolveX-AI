@@ -1,20 +1,10 @@
 import os
 import datetime
 import bcrypt
-from typing import Optional
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
-from sqlalchemy.orm import Session
-from backend.database import get_db
-from backend.models import User
-from backend.schemas import TokenData
-
-import os
-import datetime
-import bcrypt
 import logging
+from pathlib import Path
 from typing import Optional
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -24,9 +14,32 @@ from backend.models import User
 from backend.schemas import TokenData
 from backend.firebase_auth import verify_firebase_token
 
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=_env_path)
+
 logger = logging.getLogger("complainai.auth")
 
-SECRET_KEY = os.getenv("SECRET_KEY", os.getenv("COMPLAINAI_SECRET_KEY", os.getenv("RESOLVEX_SECRET_KEY", "complainai-dev-secret-key-college-caa-2026-viva-security")))
+_DEV_DEFAULT_SECRET = "complainai-dev-secret-key-college-caa-2026-viva-security"
+_CONFIGURED_SECRET = (
+    os.getenv("SECRET_KEY")
+    or os.getenv("COMPLAINAI_SECRET_KEY")
+    or os.getenv("RESOLVEX_SECRET_KEY")
+    or ""
+).strip()
+
+_IS_DEPLOYED = (
+    os.getenv("ENVIRONMENT", "").strip().lower() == "production"
+    or os.getenv("APP_ENV", "").strip().lower() == "production"
+    or os.getenv("RENDER", "").strip().lower() == "true"
+    or os.getenv("VERCEL", "").strip() == "1"
+)
+
+if _IS_DEPLOYED and (not _CONFIGURED_SECRET or _CONFIGURED_SECRET == _DEV_DEFAULT_SECRET):
+    raise RuntimeError(
+        "A strong SECRET_KEY (or COMPLAINAI_SECRET_KEY) environment variable must be configured in production/deployed mode."
+    )
+
+SECRET_KEY = _CONFIGURED_SECRET or _DEV_DEFAULT_SECRET
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
@@ -76,11 +89,11 @@ def get_current_user_optional(
     # 1. Primary verification: Firebase Admin SDK
     firebase_decoded = verify_firebase_token(token_str)
     if firebase_decoded:
-        uid = firebase_decoded.get("uid")
+        uid = firebase_decoded.get("uid") or firebase_decoded.get("sub")
         email = (firebase_decoded.get("email") or "").strip().lower()
         name = firebase_decoded.get("name") or (email.split("@")[0] if email else "User")
-        is_admin_claim = firebase_decoded.get("admin") is True or firebase_decoded.get("role") == "admin"
-        is_admin = is_admin_claim or (email in ADMIN_EMAILS)
+        # Only trust server-set Firebase custom admin claim or configured ADMIN_EMAILS allowlist
+        is_admin = (firebase_decoded.get("admin") is True) or (bool(email) and email in ADMIN_EMAILS)
 
         # Lookup existing user by firebase_uid or email
         user = None
@@ -90,9 +103,14 @@ def get_current_user_optional(
             user = db.query(User).filter(User.email == email).first()
 
         if user:
+            # Prevent binding a different Firebase UID to an existing account
+            if uid and user.firebase_uid and user.firebase_uid != uid:
+                logger.warning("Firebase UID mismatch for existing account %s", email)
+                return None
+
             # Sync user profile attributes
             changed = False
-            if uid and user.firebase_uid != uid:
+            if uid and not user.firebase_uid:
                 user.firebase_uid = uid
                 changed = True
             if name and not user.name:

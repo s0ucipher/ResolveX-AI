@@ -116,8 +116,8 @@ ComplainAI/
 ## ⚡ Quick Start & Local Execution
 
 ### 1. Prerequisites
-- **Python 3.10+** (Tested on Python 3.14)
-- **Node.js 18+** & **npm**
+- **Python 3.10+** (Tested on Python 3.12)
+- **Node.js 20+** & **npm**
 
 ---
 
@@ -184,13 +184,18 @@ Open `http://127.0.0.1:8000` to interact with the full unified application!
 
 ## 🧪 Running Automated Tests
 
-Execute the 10 automated test suites with:
+Execute the full backend test suite (including API, lifecycle, ML, priority, and mocked Firebase/Gemini tests) with:
 
 ```bash
-PYTHONPATH=. ./venv/bin/pytest backend/tests/test_api.py -v
+PYTHONPATH=. ./venv/bin/pytest backend/tests -v
 ```
 
-All 10 tests will run and pass, validating authentication, AI inference, priority scoring, complaint lifecycle transitions, and analytics.
+On Windows PowerShell:
+
+```powershell
+$env:PYTHONPATH="."
+.\venv\Scripts\python.exe -m pytest backend/tests -v
+```
 
 ---
 

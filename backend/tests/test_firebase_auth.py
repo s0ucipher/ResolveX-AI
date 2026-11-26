@@ -2,10 +2,13 @@ import pytest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from backend.main import app
-from backend.models import User
-from backend.database import SessionLocal
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _ensure_tables(test_client):
+    pass
 
 def test_verify_firebase_token_invalid():
     from backend.firebase_auth import verify_firebase_token
@@ -71,7 +74,8 @@ def test_firebase_admin_privileges_mocked():
         data = res.json()
         assert "items" in data or "complaints" in data
 
-def test_firebase_admin_role_sync():
+def test_firebase_admin_role_sync_rejected(test_client):
+    """Client-requested role='admin' in /api/auth/sync must NOT promote a regular user."""
     fake_token = "mock-firebase-token-admin-upgrade"
     mock_decoded = {
         "uid": "fb_supervisor_test_54321",
@@ -82,11 +86,22 @@ def test_firebase_admin_role_sync():
 
     with patch("backend.auth.verify_firebase_token", return_value=mock_decoded):
         headers = {"Authorization": f"Bearer {fake_token}"}
-        res = client.post("/api/auth/sync", json={
+        res = test_client.post("/api/auth/sync", json={
             "name": "Electrical Supervisor (Electrical Division)",
             "role": "admin"
         }, headers=headers)
         assert res.status_code == 200
         data = res.json()
-        assert data["role"] == "admin"
+        assert data["role"] == "user"
         assert "Electrical Supervisor" in data["name"]
+
+        # Verify they are still blocked from admin endpoints
+        admin_res = test_client.get("/api/admin/complaints", headers=headers)
+        assert admin_res.status_code == 403
+
+
+def test_firebase_rejected_verifier_returns_401(test_client):
+    """A failed Firebase verification must end the auth attempt with 401."""
+    with patch("backend.auth.verify_firebase_token", return_value=None):
+        res = test_client.get("/api/auth/me", headers={"Authorization": "Bearer forged.firebase.token"})
+        assert res.status_code == 401

@@ -68,6 +68,8 @@ def transition_complaint_status(
         complaint.resolved_at = now
         if resolution_notes:
             complaint.resolution_notes = resolution_notes
+    elif new_status == "Reopened":
+        complaint.resolved_at = None
     elif new_status == "Rejected":
         if not rejection_reason:
             raise HTTPException(

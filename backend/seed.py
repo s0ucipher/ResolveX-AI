@@ -11,8 +11,6 @@ from backend.auth import get_password_hash
 from backend.services.classifier import classifier_service
 from backend.services.priority import calculate_priority
 
-Base.metadata.create_all(bind=engine)
-
 DEMO_USERS = [
     {
         "name": "Prof. Arvind Kumar (Campus Facilities Dean)",
@@ -172,6 +170,7 @@ SAMPLE_COMPLAINTS = [
 ]
 
 def seed_database():
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         # 1. Seed Users

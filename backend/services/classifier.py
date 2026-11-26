@@ -65,10 +65,6 @@ class ComplaintClassifierService:
                 if scores[idx] > 0.05:
                     term = str(self.feature_names[non_zero_indices[idx]])
                     influential_features.append(term)
-                    
-        # If no positive n-grams matched, fallback to significant keywords in title
-        if not influential_features:
-            influential_features = [str(w) for w in title.lower().split() if len(w) > 4][:3]
 
         # Category probabilities map
         cat_probs = {
