@@ -48,20 +48,26 @@ function Distribution({
     return <div className="chart-empty">No reports recorded yet</div>;
 
   return (
-    <div className="dist-list">
+    <div className="chart-bars" style={{ padding: '12px 0 0' }}>
       {data.map((item) => {
-        const tone = priority ? `priority-${item.name.toLowerCase()}` : '';
+        const key = item.name.toLowerCase();
+        const fillStyle: React.CSSProperties = {
+          width: `${(item.value / max) * 100}%`,
+        };
+        if (priority) {
+          if (key === 'critical') fillStyle.background = '#e11d48';
+          else if (key === 'high') fillStyle.background = '#d97706';
+          else if (key === 'medium') fillStyle.background = '#3679d5';
+          else fillStyle.background = '#64748b';
+        }
         return (
-          <div className="dist-row" key={item.name}>
-            <div className="dist-label">
+          <div key={item.name}>
+            <div className="distribution-label">
               <span>{item.name}</span>
               <strong>{item.value}</strong>
             </div>
-            <div className="dist-track">
-              <div
-                className={`dist-fill ${tone}`}
-                style={{ width: `${(item.value / max) * 100}%` }}
-              />
+            <div className="distribution-track">
+              <div className="distribution-fill" style={fillStyle} />
             </div>
           </div>
         );
