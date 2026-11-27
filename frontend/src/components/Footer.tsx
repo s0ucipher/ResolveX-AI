@@ -49,7 +49,7 @@ export function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        <span>© {new Date().getFullYear()} ComplainAI</span>
+        <span>© {new Date().getFullYear()} ResolveXAI</span>
         <span>Report smarter. Resolve together.</span>
         <Link to="/">Back to top ↑</Link>
       </div>

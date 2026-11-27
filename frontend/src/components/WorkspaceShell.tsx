@@ -173,7 +173,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           {children}
         </main>
         <div className="workspace-bottom">
-          <span>ComplainAI · Campus care, connected</span>
+          <span>ResolveXAI · Campus care, connected</span>
           <span>AI assisted. Human reviewed.</span>
         </div>
       </div>

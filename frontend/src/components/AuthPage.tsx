@@ -321,7 +321,7 @@ export function AuthPage({
         ) : (
           <>
             <p className="auth-switch">
-              {register ? 'Already have an account?' : 'New to ComplainAI?'}{' '}
+              {register ? 'Already have an account?' : 'New to ResolveXAI?'}{' '}
               <Link to={`${prefix}/${register ? 'login' : 'register'}`}>
                 {register ? 'Sign in' : 'Create an account'}
               </Link>

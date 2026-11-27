@@ -660,7 +660,7 @@ export const SubmitComplaintPage: React.FC = () => {
           Report a campus issue
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-2xl">
-          Describe the problem in plain conversational language. ComplainAI automatically determines the category, evaluates priority, and flags duplicates.
+          Describe the problem in plain conversational language. ResolveXAI automatically determines the category, evaluates priority, and flags duplicates.
         </p>
 
         {/* Scanned Report Intake & Critical Ranking Banner */}
@@ -1098,7 +1098,7 @@ export const SubmitComplaintPage: React.FC = () => {
                   {isAutoPredicting && (
                     <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-xs text-primaryViolet dark:text-darkCyan ">
                       <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                      <span className="font-semibold text-[11px]">Analyzing text with ComplainAI ML model...</span>
+                      <span className="font-semibold text-[11px]">Analyzing text with ResolveXAI ML model...</span>
                     </div>
                   )}
 
@@ -1170,7 +1170,7 @@ export const SubmitComplaintPage: React.FC = () => {
                   {!isAutoPredicting && !autoPredictedCategory && !autoPredictError && (
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                       <ShieldCheck className="w-3.5 h-3.5 text-primaryViolet dark:text-darkPurple shrink-0" />
-                      <span>ComplainAI will auto-classify once title (≥5 chars) & description (≥15 chars) are entered.</span>
+                      <span>ResolveXAI will auto-classify once title (≥5 chars) & description (≥15 chars) are entered.</span>
                     </div>
                   )}
                 </>
@@ -1486,7 +1486,7 @@ export const SubmitComplaintPage: React.FC = () => {
               <span>People make the final call</span>
             </div>
             <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              ComplainAI outputs are advisory recommendations. Authorized campus administrators review and triage each ticket before technician dispatch.
+              ResolveXAI outputs are advisory recommendations. Authorized campus administrators review and triage each ticket before technician dispatch.
             </p>
           </div>
         </div>
