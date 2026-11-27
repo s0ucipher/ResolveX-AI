@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowUpRight,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -17,27 +16,29 @@ import {
   Pagination,
 } from '../components/DashboardParts';
 import { STATUS_LIST } from '../types';
-const PAGE_SIZE = 6;
+
+const PAGE_SIZE = 8;
+
 export function UserDashboardPage() {
   const { complaints, loading, error, stats, refreshComplaints } =
     useComplaints();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
-  const [tab, setTab] = useState('all');
+  const [tab, setTab] = useState<'all' | 'active' | 'resolved'>('all');
   const [page, setPage] = useState(1);
+
   const active = complaints.filter(
     (item) => !['Resolved', 'Rejected'].includes(item.status)
   ).length;
+
   const filtered = complaints
     .filter((item) => {
-      const matchesQuery = [
-        item.title,
-        item.public_id,
-        item.category,
-        item.location,
-      ].some((value) =>
-        value.toLowerCase().includes(query.trim().toLowerCase())
-      );
+      const q = query.trim().toLowerCase();
+      const matchesQuery =
+        !q ||
+        [item.title, item.public_id, item.category, item.location].some(
+          (value) => value.toLowerCase().includes(q)
+        );
       return (
         matchesQuery &&
         (!status || item.status === status) &&
@@ -51,24 +52,18 @@ export function UserDashboardPage() {
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
+
   const currentPage = Math.min(
     page,
     Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   );
-  const percent = stats.total
-    ? Math.round((stats.resolvedCount / stats.total) * 100)
-    : 0;
-  const other =
-    stats.total - stats.openCount - stats.inProgressCount - stats.resolvedCount;
+
   return (
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Your campus, cared for</p>
-          <h1>Your reports. In view.</h1>
-          <p>
-            Everything you’ve reported, and every step toward getting it sorted.
-          </p>
+          <h1>My complaints</h1>
+          <p>Track the status and resolution history of your campus reports.</p>
         </div>
         <div className="heading-actions">
           <button
@@ -85,132 +80,53 @@ export function UserDashboardPage() {
           </Link>
         </div>
       </div>
+
       {error && (
         <div className="error-banner" role="alert">
           <span>{error} Your available records are shown below.</span>
           <button onClick={() => void refreshComplaints()}>Retry</button>
         </div>
       )}
+
       <div className="metrics-grid">
         <Metric
           label="Total reports"
           value={loading && !complaints.length ? '—' : stats.total}
-          note="All your campus reports"
+          note="Submitted by you"
           icon={ClipboardList}
         />
         <Metric
           label="Awaiting action"
           value={stats.openCount}
-          note="Submitted, in review or assigned"
+          note="Open or reopened"
           icon={Clock3}
         />
         <Metric
           label="In progress"
           value={stats.inProgressCount}
-          note="Currently being worked on"
+          note="Being worked on"
           icon={Wrench}
         />
         <Metric
           label="Resolved"
           value={stats.resolvedCount}
-          note="A little better, thanks to you"
+          note="Completed"
           icon={CheckCircle2}
           tone="resolved"
         />
       </div>
-      <div className="dashboard-columns">
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Your resolution snapshot</h2>
-              <p>A view across all your reports</p>
-            </div>
-            <span>All time</span>
-          </div>
-          <div className="panel-body progress-summary">
-            <div
-              className="resolution-ring"
-              role="img"
-              aria-label={`${percent}% of your reports resolved`}
-            >
-              <svg viewBox="0 0 128 128" aria-hidden="true">
-                <circle cx="64" cy="64" r="54" />
-                <circle
-                  className="ring-fill"
-                  cx="64"
-                  cy="64"
-                  r="54"
-                  strokeDasharray={`${percent * 3.393} 339.3`}
-                />
-              </svg>
-              <div className="ring-label">
-                <strong>{stats.total ? `${percent}%` : '—'}</strong>
-                <span>resolved</span>
-              </div>
-            </div>
-            <div className="progress-legend">
-              <div className="legend-row">
-                <span>
-                  <i className="legend-dot" />
-                  Awaiting action
-                </span>
-                <strong>{stats.openCount}</strong>
-              </div>
-              <div className="legend-row">
-                <span>
-                  <i className="legend-dot blue" />
-                  In progress
-                </span>
-                <strong>{stats.inProgressCount}</strong>
-              </div>
-              <div className="legend-row">
-                <span>
-                  <i className="legend-dot green" />
-                  Resolved
-                </span>
-                <strong>{stats.resolvedCount}</strong>
-              </div>
-              {other > 0 && (
-                <div className="legend-row">
-                  <span>
-                    <i className="legend-dot" />
-                    Reopened or rejected
-                  </span>
-                  <strong>{other}</strong>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-        <aside className="dashboard-nudge">
-          <FilePlus2 />
-          <div>
-            <h2>
-              Noticed something
-              <br />
-              that needs a fix?
-            </h2>
-            <p>
-              A clear description and a location are all you need to get
-              started.
-            </p>
-          </div>
-          <Link to="/submit" className="button button-light button-small">
-            Make a report
-            <ArrowUpRight />
-          </Link>
-        </aside>
-      </div>
+
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>Your report history</h2>
-            <p>Open a report to see its full timeline and updates</p>
+            <h2>Report history</h2>
+            <p>Click any report to view its timeline and resolution notes</p>
           </div>
           {loading && (
             <RefreshCw size={15} className="spin" aria-label="Refreshing" />
           )}
         </div>
+
         <div className="table-tabs" aria-label="Filter reports">
           <button
             aria-pressed={tab === 'all'}
@@ -220,7 +136,7 @@ export function UserDashboardPage() {
               setPage(1);
             }}
           >
-            All reports<span className="tab-count">{stats.total}</span>
+            All<span className="tab-count">{stats.total}</span>
           </button>
           <button
             aria-pressed={tab === 'active'}
@@ -243,13 +159,14 @@ export function UserDashboardPage() {
             Resolved<span className="tab-count">{stats.resolvedCount}</span>
           </button>
         </div>
+
         <div className="table-toolbar">
           <label className="search-field">
             <Search />
             <span className="sr-only">Search your reports</span>
             <input
               type="search"
-              placeholder="Search reports, tracking IDs, locations..."
+              placeholder="Search title, tracking ID, location..."
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -281,10 +198,11 @@ export function UserDashboardPage() {
                 setPage(1);
               }}
             >
-              Clear filters
+              Clear
             </button>
           )}
         </div>
+
         <ComplaintTable
           items={filtered.slice(
             (currentPage - 1) * PAGE_SIZE,
@@ -293,6 +211,7 @@ export function UserDashboardPage() {
           loading={loading}
           filtered={Boolean(query || status || tab !== 'all')}
         />
+
         <Pagination
           page={currentPage}
           total={filtered.length}

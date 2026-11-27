@@ -1008,7 +1008,7 @@
   overflow: hidden;
 }
 .metric {
-  padding: 24px;
+  padding: 18px 22px;
   border-right: 1px solid var(--line);
 }
 .metric:last-child {
@@ -1019,24 +1019,31 @@
   justify-content: space-between;
   gap: 8px;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 .metric-top svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
+  opacity: 0.75;
 }
 .metric-value {
   display: block;
-  font-size: 36px;
-  font-weight: 400;
-  line-height: 1.5;
-  letter-spacing: -1px;
+  font-size: 30px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.8px;
   font-variant-numeric: tabular-nums;
 }
 .metric-note {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-secondary);
+}
+.analytics-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
 }
 .metric.resolved .metric-value {
   color: var(--success);

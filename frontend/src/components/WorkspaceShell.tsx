@@ -107,18 +107,6 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             </>
           )}
         </nav>
-        <div className="sidebar-help">
-          <ClipboardList />
-          <h3>Every report matters</h3>
-          <p>
-            Keep your tracking ID handy. You can follow every step toward
-            resolution.
-          </p>
-          <Link to="/track">
-            Track a report
-            <ArrowUpRight />
-          </Link>
-        </div>
         <div className="sidebar-account">
           <span className="avatar">
             {user?.name?.slice(0, 1).toUpperCase() || 'U'}
@@ -172,10 +160,6 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         >
           {children}
         </main>
-        <div className="workspace-bottom">
-          <span>ResolveXAI · Campus care, connected</span>
-          <span>AI assisted. Human reviewed.</span>
-        </div>
       </div>
     </div>
   );

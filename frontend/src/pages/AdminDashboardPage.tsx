@@ -1,40 +1,40 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from 'recharts';
-import {
   ArrowUpRight,
   CheckCircle2,
   ClipboardList,
   Clock3,
   RefreshCw,
   Search,
-  ShieldAlert,
-  ShieldCheck,
   Wrench,
 } from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { api } from '../services/api';
 import {
   AnalyticsSummary,
+  CATEGORIES,
   ChartDataPoint,
   Complaint,
-  CATEGORIES,
   STATUS_LIST,
 } from '../types';
+import { useTheme } from '../context/ThemeContext';
 import {
   Metric,
   ComplaintTable,
   Pagination,
 } from '../components/DashboardParts';
-import { useTheme } from '../context/ThemeContext';
+
 const PAGE_SIZE = 8;
+
 function Distribution({
   data,
   priority = false,
@@ -43,36 +43,33 @@ function Distribution({
   priority?: boolean;
 }) {
   const max = Math.max(1, ...data.map((item) => item.value));
-  if (!data.length)
-    return <div className="chart-empty">No report data to display yet</div>;
-  const colors: Record<string, string> = {
-    Critical: '#bd555b',
-    High: '#b58a40',
-    Medium: '#3679d5',
-    Low: '#9ca8b7',
-  };
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  if (!data.length || total === 0)
+    return <div className="chart-empty">No reports recorded yet</div>;
+
   return (
-    <div className="chart-bars">
-      {data.map((item) => (
-        <div key={item.name}>
-          <div className="distribution-label">
-            <span>{item.name}</span>
-            <strong>{item.value}</strong>
+    <div className="dist-list">
+      {data.map((item) => {
+        const tone = priority ? `priority-${item.name.toLowerCase()}` : '';
+        return (
+          <div className="dist-row" key={item.name}>
+            <div className="dist-label">
+              <span>{item.name}</span>
+              <strong>{item.value}</strong>
+            </div>
+            <div className="dist-track">
+              <div
+                className={`dist-fill ${tone}`}
+                style={{ width: `${(item.value / max) * 100}%` }}
+              />
+            </div>
           </div>
-          <div className="distribution-track">
-            <div
-              className="distribution-fill"
-              style={{
-                width: `${(item.value / max) * 100}%`,
-                background: priority ? colors[item.name] : undefined,
-              }}
-            />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
+
 export function AdminDashboardPage() {
   const { theme } = useTheme();
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
@@ -93,6 +90,15 @@ export function AdminDashboardPage() {
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const requestId = useRef(0);
+
+  // Live debounced search so admins can type without needing an extra Search click
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(draft.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [draft]);
+
   useEffect(() => {
     let current = true;
     Promise.all([
@@ -119,11 +125,13 @@ export function AdminDashboardPage() {
       current = false;
     };
   }, [revision]);
+
   useEffect(() => {
     setPage(1);
   }, [query, category, priority, status, tab]);
 
   useEffect(() => {
+    if (tab === 'analytics') return;
     const id = ++requestId.current;
     setLoading(true);
     setError('');
@@ -158,8 +166,10 @@ export function AdminDashboardPage() {
       requestId.current++;
     };
   }, [query, category, priority, status, tab, page, revision]);
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
+
   const clearFilters = () => {
     setDraft('');
     setQuery('');
@@ -168,20 +178,18 @@ export function AdminDashboardPage() {
     setStatus('');
     setPage(1);
   };
+
   const hasFilters = Boolean(
     query || category || priority || status || tab === 'critical'
   );
   const tick = theme === 'dark' ? '#a5afbd' : '#667181';
+
   return (
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Campus operations</p>
-          <h1>A clearer picture. Better decisions.</h1>
-          <p>
-            Review what needs attention, get the right teams involved, and
-            follow the work through.
-          </p>
+          <h1>Triage & overview</h1>
+          <p>Review incoming campus reports, assign teams, and track resolution.</p>
         </div>
         <div className="heading-actions">
           <button
@@ -198,6 +206,7 @@ export function AdminDashboardPage() {
           </Link>
         </div>
       </div>
+
       {error && (
         <div className="error-banner" role="alert">
           <span>{error}</span>
@@ -206,148 +215,48 @@ export function AdminDashboardPage() {
           </button>
         </div>
       )}
+
       <div className="metrics-grid">
         <Metric
-          label="Campus reports"
+          label="Total reports"
           value={summary?.total_complaints ?? '—'}
-          note="All recorded reports"
+          note="All campus tickets"
           icon={ClipboardList}
         />
         <Metric
           label="Awaiting action"
           value={summary?.open_complaints ?? '—'}
-          note="Open reports requiring attention"
+          note="Open or reopened"
           icon={Clock3}
         />
         <Metric
           label="In progress"
           value={summary?.in_progress_complaints ?? '—'}
-          note="Work currently underway"
+          note="Active work orders"
           icon={Wrench}
         />
         <Metric
           label="Resolved"
           value={summary?.resolved_complaints ?? '—'}
-          note="Completed and recorded"
+          note="Closed tickets"
           icon={CheckCircle2}
           tone="resolved"
         />
       </div>
-      <div className="analytics-grid">
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Reports by category</h2>
-              <p>Where campus needs attention</p>
-            </div>
-            <span>All time</span>
-          </div>
-          {categories.length ? (
-            <>
-              <div
-                className="chart-wrap"
-                role="img"
-                aria-label={categories
-                  .map((item) => `${item.name}: ${item.value}`)
-                  .join(', ')}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={[...categories]
-                      .sort((a, b) => b.value - a.value)
-                      .slice(0, 6)}
-                    margin={{ top: 8, right: 4, left: -20, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      vertical={false}
-                      stroke={theme === 'dark' ? '#303844' : '#e3e7ec'}
-                      strokeDasharray="3 3"
-                    />
-                    <XAxis
-                      dataKey="name"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: tick, fontSize: 10 }}
-                      tickFormatter={(value) =>
-                        value === 'Other'
-                          ? value
-                          : String(value).split(' ').slice(0, 2).join(' ')
-                      }
-                      interval={0}
-                      height={48}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: tick, fontSize: 10 }}
-                    />
-                    <Tooltip
-                      cursor={{
-                        fill: theme === 'dark' ? '#222a35' : '#f2f4f7',
-                      }}
-                      contentStyle={{
-                        border: '1px solid var(--line)',
-                        borderRadius: 8,
-                        background: 'var(--surface)',
-                        fontSize: 12,
-                        color: 'var(--text-primary)',
-                      }}
-                    />
-                    <Bar
-                      dataKey="value"
-                      name="Reports"
-                      fill="#3679d5"
-                      radius={[3, 3, 0, 0]}
-                      maxBarSize={40}
-                      isAnimationActive={!window.matchMedia('(prefers-reduced-motion: reduce)').matches} animationDuration={1000} animationEasing="ease-out"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="chart-caption">
-                The six most reported categories ·{' '}
-                {categories.reduce((sum, item) => sum + item.value, 0)} total
-                reports
-              </p>
-            </>
-          ) : (
-            <div className="chart-empty">
-              {summary
-                ? 'Category trends appear when reports are submitted'
-                : 'Loading category data…'}
-            </div>
-          )}
-        </section>
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Priority overview</h2>
-              <p>Urgency, with a reason behind it</p>
-            </div>
-            <ShieldAlert size={18} />
-          </div>
-          <Distribution
-            data={['Critical', 'High', 'Medium', 'Low'].map((name) => ({
-              name,
-              value: priorities.find((item) => item.name === name)?.value || 0,
-            }))}
-            priority
-          />
-          <div className="chart-caption">
-            {summary?.high_critical_complaints ?? '—'} high or critical reports
-            · {summary?.critical_complaints ?? '—'} critical
-          </div>
-        </section>
-      </div>
+
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>Report queue</h2>
-            <p>Review recommendations and move reports toward resolution</p>
+            <h2>{tab === 'analytics' ? 'Campus analytics' : 'Report queue'}</h2>
+            <p>
+              {tab === 'analytics'
+                ? 'Category, priority, lifecycle, and location breakdown'
+                : 'Open a ticket to assign a department, update status, or resolve'}
+            </p>
           </div>
-          <span>{total} matching reports</span>
+          {tab !== 'analytics' && <span>{total} matching</span>}
         </div>
+
         <div className="table-tabs" aria-label="Operations view">
           <button
             aria-pressed={tab === 'all'}
@@ -367,7 +276,7 @@ export function AdminDashboardPage() {
               setPage(1);
             }}
           >
-            Critical queue
+            Critical
             <span className="tab-count">
               {summary?.critical_complaints ?? '—'}
             </span>
@@ -377,9 +286,10 @@ export function AdminDashboardPage() {
             className={tab === 'analytics' ? 'active' : ''}
             onClick={() => setTab('analytics')}
           >
-            More analytics
+            Analytics
           </button>
         </div>
+
         {tab !== 'analytics' ? (
           <>
             <form
@@ -397,15 +307,9 @@ export function AdminDashboardPage() {
                   type="search"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Search reports or tracking IDs..."
+                  placeholder="Search title, tracking ID, location..."
                 />
               </label>
-              <button
-                className="button button-outline button-small"
-                type="submit"
-              >
-                Search
-              </button>
               <div className="filter-group">
                 <select
                   className="filter-control"
@@ -432,9 +336,10 @@ export function AdminDashboardPage() {
                     }}
                   >
                     <option value="">All priorities</option>
-                    {['Critical', 'High', 'Medium', 'Low'].map((value) => (
-                      <option key={value}>{value}</option>
-                    ))}
+                    <option>Critical</option>
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
                   </select>
                 )}
                 <select
@@ -451,31 +356,28 @@ export function AdminDashboardPage() {
                     <option key={value}>{value}</option>
                   ))}
                 </select>
+                {hasFilters && (
+                  <button
+                    type="button"
+                    className="button button-outline button-small"
+                    onClick={() => {
+                      clearFilters();
+                      setTab('all');
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             </form>
-            {hasFilters && (
-              <div className="active-filter-note">
-                <span>
-                  {tab === 'critical'
-                    ? 'Showing critical reports'
-                    : 'Filters applied'}
-                </span>
-                <button
-                  onClick={() => {
-                    clearFilters();
-                    setTab('all');
-                  }}
-                >
-                  Clear filters
-                </button>
-              </div>
-            )}
+
             <ComplaintTable
               items={complaints}
               loading={loading}
               filtered={hasFilters}
               admin
             />
+
             <Pagination
               page={currentPage}
               total={total}
@@ -486,11 +388,96 @@ export function AdminDashboardPage() {
         ) : (
           <div className="panel-body">
             <div className="analytics-grid secondary">
-              <section>
+              <section className="analytics-card">
+                <h3 className="subchart-title">Top categories</h3>
+                {categories.length ? (
+                  <div
+                    className="chart-wrap"
+                    role="img"
+                    aria-label={categories
+                      .map((item) => `${item.name}: ${item.value}`)
+                      .join(', ')}
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={[...categories]
+                          .sort((a, b) => b.value - a.value)
+                          .slice(0, 6)}
+                        margin={{ top: 8, right: 4, left: -20, bottom: 0 }}
+                      >
+                        <CartesianGrid
+                          vertical={false}
+                          stroke={theme === 'dark' ? '#303844' : '#e3e7ec'}
+                          strokeDasharray="3 3"
+                        />
+                        <XAxis
+                          dataKey="name"
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: tick, fontSize: 10 }}
+                          tickFormatter={(value) =>
+                            value === 'Other'
+                              ? value
+                              : String(value).split(' ').slice(0, 2).join(' ')
+                          }
+                          interval={0}
+                          height={44}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: tick, fontSize: 10 }}
+                        />
+                        <Tooltip
+                          cursor={{
+                            fill: theme === 'dark' ? '#222a35' : '#f2f4f7',
+                          }}
+                          contentStyle={{
+                            border: '1px solid var(--line)',
+                            borderRadius: 8,
+                            background: 'var(--surface)',
+                            fontSize: 12,
+                            color: 'var(--text-primary)',
+                          }}
+                        />
+                        <Bar
+                          dataKey="value"
+                          name="Reports"
+                          fill="#3679d5"
+                          radius={[3, 3, 0, 0]}
+                          maxBarSize={36}
+                          isAnimationActive={
+                            !window.matchMedia('(prefers-reduced-motion: reduce)')
+                              .matches
+                          }
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="chart-empty">No category data yet</div>
+                )}
+              </section>
+
+              <section className="analytics-card">
+                <h3 className="subchart-title">Priority breakdown</h3>
+                <Distribution
+                  data={['Critical', 'High', 'Medium', 'Low'].map((name) => ({
+                    name,
+                    value:
+                      priorities.find((item) => item.name === name)?.value || 0,
+                  }))}
+                  priority
+                />
+              </section>
+
+              <section className="analytics-card">
                 <h3 className="subchart-title">Report lifecycle</h3>
                 <Distribution data={statuses} />
               </section>
-              <section>
+
+              <section className="analytics-card">
                 <h3 className="subchart-title">Location hotspots</h3>
                 <Distribution
                   data={[...locations]
@@ -500,20 +487,13 @@ export function AdminDashboardPage() {
               </section>
             </div>
             <p className="operations-note">
-              <Clock3 />
-              Average resolution time:{' '}
               {summary?.avg_resolution_hours != null
-                ? `${summary.avg_resolution_hours.toFixed(1)} hours`
-                : 'Available after the first resolution'}
+                ? `Average resolution time: ${summary.avg_resolution_hours.toFixed(1)} hours.`
+                : 'Average resolution time appears once reports are marked resolved.'}
             </p>
           </div>
         )}
       </section>
-      <p className="operations-note">
-        <ShieldCheck />
-        AI recommendations support your decisions. Every administrative change
-        is recorded in the report timeline.
-      </p>
     </>
   );
 }
